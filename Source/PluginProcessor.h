@@ -29,11 +29,11 @@ struct CapturedChord
     int inputNote = -1;
 };
 
-class NeoChordsProcessor : public juce::AudioProcessor, private juce::Timer
+class NoviChordsProcessor : public juce::AudioProcessor, private juce::Timer
 {
 public:
-    NeoChordsProcessor();
-    ~NeoChordsProcessor() override;
+    NoviChordsProcessor();
+    ~NoviChordsProcessor() override;
 
     void prepareToPlay (double sampleRate, int samplesPerBlock) override;
     void releaseResources() override {}
@@ -44,7 +44,7 @@ public:
     juce::AudioProcessorEditor* createEditor() override;
     bool hasEditor() const override { return true; }
 
-    const juce::String getName() const override { return "NeoChords"; }
+    const juce::String getName() const override { return "NoviChords"; }
     bool acceptsMidi() const override  { return true; }
     bool producesMidi() const override { return true; }
     bool isMidiEffect() const override { return false; }
@@ -161,5 +161,5 @@ private:
     std::atomic<float>* pStrum = nullptr;
     std::atomic<float>* pHumanize = nullptr;
 
-    JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (NeoChordsProcessor)
+    JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (NoviChordsProcessor)
 };

@@ -6,7 +6,7 @@ if(CMAKE_HOST_APPLE)
     set(CMAKE_OSX_DEPLOYMENT_TARGET "11.0" CACHE STRING "")
 endif()
 
-project(NeoChords VERSION 1.0.0)
+project(NoviChords VERSION 1.0.0)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -24,12 +24,12 @@ if(APPLE)
     list(APPEND NEO_FORMATS AU)
 endif()
 
-juce_add_plugin(NeoChords
+juce_add_plugin(NoviChords
     COMPANY_NAME "Amir Novin"
-    BUNDLE_ID "com.amirnovin.neochords"
-    PRODUCT_NAME "NeoChords"
+    BUNDLE_ID "com.amirnovin.novichords"
+    PRODUCT_NAME "NoviChords"
     PLUGIN_MANUFACTURER_CODE Anov
-    PLUGIN_CODE NeoC
+    PLUGIN_CODE NovC
     FORMATS ${NEO_FORMATS}
     # Loads as an instrument (generator) so FL Studio puts it on a channel and
     # lets you route its MIDI output to any other plugin.
@@ -42,22 +42,22 @@ juce_add_plugin(NeoChords
     VST3_CATEGORIES Instrument Generator
     AU_MAIN_TYPE kAudioUnitType_MusicDevice)
 
-target_sources(NeoChords PRIVATE
+target_sources(NoviChords PRIVATE
     Source/ChordEngine.cpp
     Source/PluginProcessor.cpp
     Source/PluginEditor.cpp)
 
-target_compile_definitions(NeoChords PUBLIC
+target_compile_definitions(NoviChords PUBLIC
     JUCE_WEB_BROWSER=0
     JUCE_USE_CURL=0
     JUCE_VST3_CAN_REPLACE_VST2=0
     JUCE_DISPLAY_SPLASH_SCREEN=0)
 
 if(MSVC)
-    target_compile_options(NeoChords PRIVATE /utf-8)
+    target_compile_options(NoviChords PRIVATE /utf-8)
 endif()
 
-target_link_libraries(NeoChords
+target_link_libraries(NoviChords
     PRIVATE
         juce::juce_audio_utils
     PUBLIC

@@ -4,17 +4,22 @@ using namespace neo;
 
 namespace
 {
-    // Warm "late-night studio" palette: espresso background, cream text, brass accent.
-    const juce::Colour bg        { 0xff15100e };
-    const juce::Colour panel     { 0xff211915 };
-    const juce::Colour panelEdge { 0xff3a2c24 };
-    const juce::Colour cream     { 0xfff3e6d3 };
-    const juce::Colour muted     { 0xff9f8d7b };
-    const juce::Colour gold      { 0xffe3b04b };
-    const juce::Colour rose      { 0xffd0785e };
-    const juce::Colour recRed    { 0xffe0483e };
-    const juce::Colour ivory     { 0xffeee1cb };
-    const juce::Colour ebony     { 0xff2c211c };
+    // NoviChords palette: #331E36 plum, #41337A indigo, #6EA4BF steel blue, #C2EFEB mint
+    const juce::Colour plum      { 0xff331e36 };
+    const juce::Colour indigo    { 0xff41337a };
+    const juce::Colour steel     { 0xff6ea4bf };
+    const juce::Colour mint      { 0xffc2efeb };
+
+    const juce::Colour bg        = plum.darker (0.35f);                       // window background
+    const juce::Colour panel     = plum;                                      // panels
+    const juce::Colour panelEdge = indigo;                                    // borders
+    const juce::Colour cream     = mint;                                      // main text
+    const juce::Colour muted     = mint.interpolatedWith (plum, 0.42f);       // secondary text
+    const juce::Colour gold      = steel;                                     // accent / active
+    const juce::Colour rose      = indigo.interpolatedWith (mint, 0.45f);     // suggestion badges, colour chords
+    const juce::Colour recRed    { 0xffe0596a };
+    const juce::Colour ivory     = mint;                                      // white keys
+    const juce::Colour ebony     = indigo;                                    // black keys
 
     constexpr int W = 1200, H = 780;
 
@@ -55,7 +60,7 @@ namespace
 }
 
 //==============================================================================
-NeoChordsEditor::Theme::Theme()
+NoviChordsEditor::Theme::Theme()
 {
     setColour (juce::ComboBox::backgroundColourId, panel);
     setColour (juce::ComboBox::textColourId, cream);
@@ -77,7 +82,7 @@ NeoChordsEditor::Theme::Theme()
     setColour (juce::TextButton::textColourOnId, cream);
 }
 
-void NeoChordsEditor::Theme::drawToggleButton (juce::Graphics& g, juce::ToggleButton& b, bool hover, bool)
+void NoviChordsEditor::Theme::drawToggleButton (juce::Graphics& g, juce::ToggleButton& b, bool hover, bool)
 {
     auto r = b.getLocalBounds().toFloat();
     auto pill = r.removeFromLeft (38.0f).withSizeKeepingCentre (34.0f, 18.0f);
@@ -92,7 +97,7 @@ void NeoChordsEditor::Theme::drawToggleButton (juce::Graphics& g, juce::ToggleBu
     g.drawText (b.getButtonText(), r.withTrimmedLeft (6.0f), juce::Justification::centredLeft);
 }
 
-void NeoChordsEditor::Theme::drawButtonBackground (juce::Graphics& g, juce::Button& b, const juce::Colour& base, bool hover, bool down)
+void NoviChordsEditor::Theme::drawButtonBackground (juce::Graphics& g, juce::Button& b, const juce::Colour& base, bool hover, bool down)
 {
     auto r = b.getLocalBounds().toFloat().reduced (0.5f);
     auto c = b.getToggleState() ? b.findColour (juce::TextButton::buttonOnColourId) : base;
@@ -106,7 +111,7 @@ void NeoChordsEditor::Theme::drawButtonBackground (juce::Graphics& g, juce::Butt
 }
 
 //==============================================================================
-NeoChordsEditor::NeoChordsEditor (NeoChordsProcessor& p)
+NoviChordsEditor::NoviChordsEditor (NoviChordsProcessor& p)
     : AudioProcessorEditor (&p), proc (p)
 {
     setLookAndFeel (&theme);
@@ -151,7 +156,7 @@ NeoChordsEditor::NeoChordsEditor (NeoChordsProcessor& p)
     voiceLeadButton.setTooltip ("Off: every key plays the same voicing each time. On: inversions follow the previous chord.");
 
     // Recorder
-    quantizeBox.addItemList (NeoChordsProcessor::quantizeNames(), 1);
+    quantizeBox.addItemList (NoviChordsProcessor::quantizeNames(), 1);
     quantizeBox.setSelectedItemIndex (proc.quantizeIndex, juce::dontSendNotification);
     quantizeBox.onChange = [this] { proc.quantizeIndex = quantizeBox.getSelectedItemIndex(); repaint(); };
     addAndMakeVisible (quantizeBox);
@@ -173,7 +178,7 @@ NeoChordsEditor::NeoChordsEditor (NeoChordsProcessor& p)
     startTimerHz (30);
 }
 
-NeoChordsEditor::~NeoChordsEditor()
+NoviChordsEditor::~NoviChordsEditor()
 {
     stopTimer();
     if (pressedSlot >= 0)
@@ -181,7 +186,7 @@ NeoChordsEditor::~NeoChordsEditor()
     setLookAndFeel (nullptr);
 }
 
-void NeoChordsEditor::refreshEngine()
+void NoviChordsEditor::refreshEngine()
 {
     shownSettings = proc.currentSettings();
     engine.update (shownSettings);
@@ -189,7 +194,7 @@ void NeoChordsEditor::refreshEngine()
     suggestions = engine.suggest (currentSlot >= 0 ? currentSlot : 0, 5);
 }
 
-void NeoChordsEditor::updateRecorderButtons()
+void NoviChordsEditor::updateRecorderButtons()
 {
     const bool rec = proc.isRecording();
     const bool hasTake = ! proc.getTake().empty();
@@ -200,7 +205,7 @@ void NeoChordsEditor::updateRecorderButtons()
     saveButton.setEnabled (! rec && hasTake);
 }
 
-void NeoChordsEditor::timerCallback()
+void NoviChordsEditor::timerCallback()
 {
     const int counter = proc.playCounter.load();
     const int tv = proc.getTakeVersion();
@@ -227,7 +232,7 @@ void NeoChordsEditor::timerCallback()
 }
 
 //==============================================================================
-void NeoChordsEditor::resized()
+void NoviChordsEditor::resized()
 {
     const int top = 88, h = 30;
     int x = 24;
@@ -292,7 +297,7 @@ void NeoChordsEditor::resized()
 }
 
 //==============================================================================
-int NeoChordsEditor::hitTestSlot (juce::Point<float> p) const
+int NoviChordsEditor::hitTestSlot (juce::Point<float> p) const
 {
     for (int s : { 1, 3, 6, 8, 10 })
         if (keyRects[(size_t) s].contains (p)) return s;
@@ -303,7 +308,7 @@ int NeoChordsEditor::hitTestSlot (juce::Point<float> p) const
     return -1;
 }
 
-std::pair<int, int> NeoChordsEditor::hitTestCircle (juce::Point<float> p) const
+std::pair<int, int> NoviChordsEditor::hitTestCircle (juce::Point<float> p) const
 {
     const auto d = p - circleCentre;
     const float r = std::hypot (d.x, d.y);
@@ -318,14 +323,14 @@ std::pair<int, int> NeoChordsEditor::hitTestCircle (juce::Point<float> p) const
     return { ring, idx };
 }
 
-juce::Point<float> NeoChordsEditor::circlePoint (int ring, int index, float radialOffset) const
+juce::Point<float> NoviChordsEditor::circlePoint (int ring, int index, float radialOffset) const
 {
     const float r = (ring == 0 ? (rMid + rOuter) * 0.5f : (rInner + rMid) * 0.5f) + radialOffset;
     const float a = (float) index * juce::MathConstants<float>::pi / 6.0f;
     return { circleCentre.x + r * std::sin (a), circleCentre.y - r * std::cos (a) };
 }
 
-std::pair<int, int> NeoChordsEditor::circlePosFor (int pc, Family f) const
+std::pair<int, int> NoviChordsEditor::circlePosFor (int pc, Family f) const
 {
     pc = ((pc % 12) + 12) % 12;
     if (majorLike (f))
@@ -333,7 +338,7 @@ std::pair<int, int> NeoChordsEditor::circlePosFor (int pc, Family f) const
     return { 1, (((pc - 9 + 12) % 12) * 7) % 12 };
 }
 
-void NeoChordsEditor::mouseMove (const juce::MouseEvent& e)
+void NoviChordsEditor::mouseMove (const juce::MouseEvent& e)
 {
     const auto h = hitTestCircle (e.position);
     if (h != hoverCircle)
@@ -347,7 +352,7 @@ void NeoChordsEditor::mouseMove (const juce::MouseEvent& e)
                                                                                 : juce::MouseCursor::NormalCursor));
 }
 
-void NeoChordsEditor::mouseDown (const juce::MouseEvent& e)
+void NoviChordsEditor::mouseDown (const juce::MouseEvent& e)
 {
     dragStarted = false;
     dragFromStrip = dragStrip.contains (e.position) && ! take.empty() && ! proc.isRecording();
@@ -379,7 +384,7 @@ void NeoChordsEditor::mouseDown (const juce::MouseEvent& e)
     }
 }
 
-void NeoChordsEditor::mouseDrag (const juce::MouseEvent& e)
+void NoviChordsEditor::mouseDrag (const juce::MouseEvent& e)
 {
     if (! dragFromStrip || dragStarted || e.getDistanceFromDragStart() < 4)
         return;
@@ -398,7 +403,7 @@ void NeoChordsEditor::mouseDrag (const juce::MouseEvent& e)
     repaint (recArea.toNearestInt());
 }
 
-void NeoChordsEditor::mouseUp (const juce::MouseEvent&)
+void NoviChordsEditor::mouseUp (const juce::MouseEvent&)
 {
     if (pressedSlot >= 0)
     {
@@ -408,30 +413,30 @@ void NeoChordsEditor::mouseUp (const juce::MouseEvent&)
     dragFromStrip = false;
 }
 
-void NeoChordsEditor::saveMidiToMusicFolder()
+void NoviChordsEditor::saveMidiToMusicFolder()
 {
     auto temp = proc.writeTakeToTempMidi (proc.quantizeIndex);
     if (! temp.existsAsFile())
         return;
-    auto dir = juce::File::getSpecialLocation (juce::File::userMusicDirectory).getChildFile ("NeoChords");
+    auto dir = juce::File::getSpecialLocation (juce::File::userMusicDirectory).getChildFile ("NoviChords");
     dir.createDirectory();
     auto dest = dir.getNonexistentChildFile (temp.getFileNameWithoutExtension(), ".mid", false);
     if (temp.copyFileTo (dest))
     {
-        recorderMessage = "Saved to Music/NeoChords";
+        recorderMessage = "Saved to Music/NoviChords";
         dest.revealToUser();
     }
     repaint (recArea.toNearestInt());
 }
 
 //==============================================================================
-void NeoChordsEditor::paint (juce::Graphics& g)
+void NoviChordsEditor::paint (juce::Graphics& g)
 {
     g.fillAll (bg);
 
     g.setColour (cream);
     g.setFont (font (26.0f, true));
-    g.drawText ("NeoChords", 24, 14, 200, 32, juce::Justification::centredLeft);
+    g.drawText ("NoviChords", 24, 14, 200, 32, juce::Justification::centredLeft);
     g.setColour (muted);
     g.setFont (font (13.0f));
     g.drawText (u8 ("gospel · soul · neo-soul chord engine"), 170, 20, 400, 24, juce::Justification::centredLeft);
@@ -446,7 +451,7 @@ void NeoChordsEditor::paint (juce::Graphics& g)
     paintRecorder (g, recArea);
 }
 
-void NeoChordsEditor::paintKeyboard (juce::Graphics& g)
+void NoviChordsEditor::paintKeyboard (juce::Graphics& g)
 {
     std::array<int, 12> rank {};
     for (size_t i = 0; i < suggestions.size(); ++i)
@@ -464,14 +469,14 @@ void NeoChordsEditor::paintKeyboard (juce::Graphics& g)
 
     auto drawLabels = [&] (int slot, juce::Rectangle<float> area, bool active, bool dark) {
         const auto textCol = active ? bg : (dark ? cream : ebony);
-        g.setColour (active ? bg : (dark ? gold : juce::Colour (0xff9a6a1c)));
+        g.setColour (active ? bg : (dark ? gold : indigo));
         g.setFont (font (dark ? 12.0f : 14.0f, true));
         g.drawText (u (engine.roman (slot)), area.removeFromTop (dark ? 16.0f : 20.0f), juce::Justification::centred);
         g.setColour (textCol);
         g.setFont (font (dark ? 13.0f : 16.0f, true));
         g.drawFittedText (u (engine.chordName (slot)), area.removeFromTop (dark ? 34.0f : 24.0f).toNearestInt(),
                           juce::Justification::centred, 2, 0.8f);
-        g.setColour (active ? bg.withAlpha (0.7f) : (dark ? muted : juce::Colour (0xff8a7764)));
+        g.setColour (active ? bg.withAlpha (0.7f) : (dark ? muted : indigo.withAlpha (0.7f)));
         g.setFont (font (11.0f));
         g.drawText ("key " + u (ChordEngine::keyLabel (slot)), area.removeFromTop (16.0f), juce::Justification::centred);
     };
@@ -506,7 +511,7 @@ void NeoChordsEditor::paintKeyboard (juce::Graphics& g)
     }
 }
 
-void NeoChordsEditor::paintNowPlaying (juce::Graphics& g, juce::Rectangle<float> r)
+void NoviChordsEditor::paintNowPlaying (juce::Graphics& g, juce::Rectangle<float> r)
 {
     drawPanel (g, r, "NOW PLAYING");
     auto a = r.reduced (16.0f, 12.0f).withTrimmedTop (22.0f);
@@ -548,7 +553,7 @@ void NeoChordsEditor::paintNowPlaying (juce::Graphics& g, juce::Rectangle<float>
                       a.toNearestInt(), juce::Justification::bottomLeft, 3);
 }
 
-void NeoChordsEditor::paintSuggestions (juce::Graphics& g, juce::Rectangle<float> r)
+void NoviChordsEditor::paintSuggestions (juce::Graphics& g, juce::Rectangle<float> r)
 {
     const juce::String from = currentSlot >= 0 ? u (engine.chordName (currentSlot)) : u (engine.chordName (0));
     drawPanel (g, r, u8 ("TRY NEXT  →  after ") + from);
@@ -593,7 +598,7 @@ void NeoChordsEditor::paintSuggestions (juce::Graphics& g, juce::Rectangle<float
     }
 }
 
-void NeoChordsEditor::paintStyle (juce::Graphics& g, juce::Rectangle<float> r)
+void NoviChordsEditor::paintStyle (juce::Graphics& g, juce::Rectangle<float> r)
 {
     const auto& si = styleInfo (shownSettings.style);
     const auto& set = engine.styleSet();
@@ -633,7 +638,7 @@ void NeoChordsEditor::paintStyle (juce::Graphics& g, juce::Rectangle<float> r)
 }
 
 //==============================================================================
-void NeoChordsEditor::paintCircle (juce::Graphics& g, juce::Rectangle<float> area)
+void NoviChordsEditor::paintCircle (juce::Graphics& g, juce::Rectangle<float> area)
 {
     drawPanel (g, area, u8 ("CIRCLE OF FIFTHS  ·  click to change key"));
 
@@ -680,8 +685,8 @@ void NeoChordsEditor::paintCircle (juce::Graphics& g, juce::Rectangle<float> are
             seg.addPieSegment (circleCentre.x - r1, circleCentre.y - r1, r1 * 2.0f, r1 * 2.0f,
                                ((float) i - 0.5f) * pi / 6.0f, ((float) i + 0.5f) * pi / 6.0f, r0 / r1);
 
-            juce::Colour fill = ring == 0 ? juce::Colour (0xff2b211c) : juce::Colour (0xff261d18);
-            if (m.diatonic) fill = juce::Colour (0xff4a3a2c);
+            juce::Colour fill = ring == 0 ? plum.brighter (0.25f) : plum.brighter (0.12f);
+            if (m.diatonic) fill = indigo;
             if (m.current)  fill = gold;
             if (hover)      fill = fill.brighter (0.15f);
             g.setColour (fill);
@@ -771,7 +776,7 @@ void NeoChordsEditor::paintCircle (juce::Graphics& g, juce::Rectangle<float> are
 }
 
 //==============================================================================
-void NeoChordsEditor::paintRecorder (juce::Graphics& g, juce::Rectangle<float> area)
+void NoviChordsEditor::paintRecorder (juce::Graphics& g, juce::Rectangle<float> area)
 {
     drawPanel (g, area, "CHORD RECORDER");
     const bool rec = proc.isRecording();
@@ -795,7 +800,7 @@ void NeoChordsEditor::paintRecorder (juce::Graphics& g, juce::Rectangle<float> a
     }
     else if (! take.empty())
     {
-        g.setColour (juce::Colour (0xff7fcf8a));
+        g.setColour (steel);
         g.setFont (font (12.5f, true));
         g.drawText (u8 ("✓ MIDI captured · ") + juce::String ((int) take.size()) + " chords · "
                     + juce::String (bars, bars < 10 ? 1 : 0) + " bars @ " + juce::String (juce::roundToInt (proc.getTakeBpm())) + " BPM",

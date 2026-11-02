@@ -1,4 +1,4 @@
-name: Build NeoChords (Mac)
+name: Build NoviChords (Mac)
 
 on:
   push:
@@ -18,34 +18,34 @@ jobs:
         run: cmake -B build -DCMAKE_BUILD_TYPE=Release
 
       - name: Build VST3, AU and engine tests
-        run: cmake --build build --target NeoChords_VST3 NeoChords_AU EngineTest -j 4
+        run: cmake --build build --target NoviChords_VST3 NoviChords_AU EngineTest -j 4
 
       - name: Run engine tests
         run: ./build/EngineTest | tail -1
 
       - name: Sign (ad-hoc) and package
         run: |
-          ART=build/NeoChords_artefacts/Release
-          codesign --force --deep --sign - "$ART/VST3/NeoChords.vst3"
-          codesign --force --deep --sign - "$ART/AU/NeoChords.component"
-          mkdir -p NeoChords
-          cp -R "$ART/VST3/NeoChords.vst3" "$ART/AU/NeoChords.component" NeoChords/
-          cp packaging/Install-NeoChords.command NeoChords/
-          chmod +x NeoChords/Install-NeoChords.command
-          cp README.md NeoChords/
-          ditto -c -k --keepParent NeoChords NeoChords-mac.zip
+          ART=build/NoviChords_artefacts/Release
+          codesign --force --deep --sign - "$ART/VST3/NoviChords.vst3"
+          codesign --force --deep --sign - "$ART/AU/NoviChords.component"
+          mkdir -p NoviChords
+          cp -R "$ART/VST3/NoviChords.vst3" "$ART/AU/NoviChords.component" NoviChords/
+          cp packaging/Install-NoviChords.command NoviChords/
+          chmod +x NoviChords/Install-NoviChords.command
+          cp README.md NoviChords/
+          ditto -c -k --keepParent NoviChords NoviChords-mac.zip
 
       - uses: actions/upload-artifact@v4
         with:
-          name: NeoChords-mac
-          path: NeoChords-mac.zip
+          name: NoviChords-mac
+          path: NoviChords-mac.zip
 
       - name: Publish to the "latest" release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           gh release delete latest --yes --cleanup-tag || true
-          gh release create latest NeoChords-mac.zip \
-            --title "NeoChords (latest Mac build)" \
-            --notes "Download NeoChords-mac.zip, unzip it, then right-click Install-NeoChords.command and choose Open." \
+          gh release create latest NoviChords-mac.zip \
+            --title "NoviChords (latest Mac build)" \
+            --notes "Download NoviChords-mac.zip, unzip it, then right-click Install-NoviChords.command and choose Open." \
             --target "${{ github.sha }}" --latest

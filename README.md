@@ -1,6 +1,6 @@
-# NeoChords
+# NoviChords
 
-A one-key-per-chord MIDI plugin for gospel, soul and neo-soul. It plays your other instruments (Keyscape, Kontakt, Serum, FL's own synths and so on): you press one key and NeoChords sends a fully voiced chord out over MIDI. It also suggests the next chord and shows each style's signature moves.
+A one-key-per-chord MIDI plugin for gospel, soul and neo-soul. It plays your other instruments (Keyscape, Kontakt, Serum, FL's own synths and so on): you press one key and NoviChords sends a fully voiced chord out over MIDI. It also suggests the next chord and shows each style's signature moves.
 
 ## How the keys work
 
@@ -37,24 +37,24 @@ The style also changes the diatonic chords. For example, Gospel's tonic is a 6/9
 **Chord recorder**:
 1. Press **● Rec**, play your chords, then **Stop**. The panel shows "MIDI captured" with a mini piano roll.
 2. Pick a **Snap** grid (or No snap).
-3. Drag the **Drag MIDI into FL Studio** strip onto a channel, the piano roll or the playlist. **Save .mid** writes the file to `Music/NeoChords` and shows it in Finder.
+3. Drag the **Drag MIDI into FL Studio** strip onto a channel, the piano roll or the playlist. **Save .mid** writes the file to `Music/NoviChords` and shows it in Finder.
 
 The recorder captures the full voiced chords at the project tempo.
 
 ## Install (Mac)
 
-1. Download `NeoChords-mac.zip` from the repo's **Releases** page ("latest") and unzip it.
-2. Right-click `Install-NeoChords.command` and choose **Open**. You only need to right-click the first time, because the build isn't notarised by Apple.
+1. Download `NoviChords-mac.zip` from the repo's **Releases** page ("latest") and unzip it.
+2. Right-click `Install-NoviChords.command` and choose **Open**. You only need to right-click the first time, because the build isn't notarised by Apple.
 3. In FL Studio, go to **Options → Manage plugins → Find installed plugins**.
 
 ## Wire it to an instrument in FL Studio
 
-1. Add **NeoChords** (VST3) to the Channel Rack and select that channel when you play.
-2. Open NeoChords and click the **gear icon** in the plugin window's top bar to open the wrapper settings. Under **MIDI**, set **Output port** to a free number, for example **1**.
+1. Add **NoviChords** (VST3) to the Channel Rack and select that channel when you play.
+2. Open NoviChords and click the **gear icon** in the plugin window's top bar to open the wrapper settings. Under **MIDI**, set **Output port** to a free number, for example **1**.
 3. Open your instrument's wrapper settings (gear icon) and set its MIDI **Input port** to the same number.
-4. Play keys on the NeoChords channel. Your instrument plays the chords.
+4. Play keys on the NoviChords channel. Your instrument plays the chords.
 
-**Recording:** record your one-finger part into a pattern on the NeoChords channel. NeoChords turns it into chords on playback, so you can change the key, style or voicing later without re-recording anything.
+**Recording:** record your one-finger part into a pattern on the NoviChords channel. NoviChords turns it into chords on playback, so you can change the key, style or voicing later without re-recording anything.
 
 ## Notes
 
@@ -67,7 +67,7 @@ The GitHub Actions workflow builds a universal (Apple Silicon + Intel) VST3 and 
 
 ```
 cmake -B build -DCMAKE_BUILD_TYPE=Release
-cmake --build build --target NeoChords_VST3 NeoChords_AU
+cmake --build build --target NoviChords_VST3 NoviChords_AU
 ```
 
 The engine has a standalone test: `cmake --build build --target EngineTest && ./build/EngineTest`.

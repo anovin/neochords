@@ -1,5 +1,5 @@
 #pragma once
-// NeoChords chord engine — pure C++ (no JUCE), so it can be unit-tested on its own.
+// NoviChords chord engine — pure C++ (no JUCE), so it can be unit-tested on its own.
 //
 // Mapping (one key = one chord), repeated in every octave:
 //   White keys C D E F G A B -> the 7 diatonic chords of the chosen key + scale (degrees 1..7)

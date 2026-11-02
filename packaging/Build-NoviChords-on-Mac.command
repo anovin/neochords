@@ -1,5 +1,5 @@
 #!/bin/bash
-# Builds NeoChords on this Mac and installs it for FL Studio. Logs to build.log next to this script.
+# Builds NoviChords on this Mac and installs it for FL Studio. Logs to build.log next to this script.
 cd "$(dirname "$0")/.." || exit 1
 ROOT="$(pwd)"
 LOG="$ROOT/build.log"
@@ -34,20 +34,22 @@ echo "STATUS: configuring"
 "$CMAKE" -B build -DCMAKE_BUILD_TYPE=Release || { echo "STATUS: failed configure"; exit 4; }
 
 echo "STATUS: compiling"
-"$CMAKE" --build build --config Release --target NeoChords_VST3 NeoChords_AU EngineTest -j "$(sysctl -n hw.ncpu)" || { echo "STATUS: failed build"; exit 5; }
+"$CMAKE" --build build --config Release --target NoviChords_VST3 NoviChords_AU EngineTest -j "$(sysctl -n hw.ncpu)" || { echo "STATUS: failed build"; exit 5; }
 
 ./build/EngineTest | tail -1
 
 echo "STATUS: installing"
-ART=build/NeoChords_artefacts/Release
-codesign --force --deep --sign - "$ART/VST3/NeoChords.vst3"
-codesign --force --deep --sign - "$ART/AU/NeoChords.component"
+ART=build/NoviChords_artefacts/Release
+codesign --force --deep --sign - "$ART/VST3/NoviChords.vst3"
+codesign --force --deep --sign - "$ART/AU/NoviChords.component"
 VST3_DIR="$HOME/Library/Audio/Plug-Ins/VST3"; AU_DIR="$HOME/Library/Audio/Plug-Ins/Components"
 mkdir -p "$VST3_DIR" "$AU_DIR"
+rm -rf "$VST3_DIR/NoviChords.vst3" "$AU_DIR/NoviChords.component"
+# remove the old NeoChords build (renamed to NoviChords)
 rm -rf "$VST3_DIR/NeoChords.vst3" "$AU_DIR/NeoChords.component"
-cp -R "$ART/VST3/NeoChords.vst3" "$VST3_DIR/"
-cp -R "$ART/AU/NeoChords.component" "$AU_DIR/"
+cp -R "$ART/VST3/NoviChords.vst3" "$VST3_DIR/"
+cp -R "$ART/AU/NoviChords.component" "$AU_DIR/"
 killall -9 AudioComponentRegistrar 2>/dev/null
-ls -la "$VST3_DIR/NeoChords.vst3/Contents/MacOS" "$AU_DIR/NeoChords.component/Contents/MacOS"
-lipo -info "$VST3_DIR/NeoChords.vst3/Contents/MacOS/NeoChords"
+ls -la "$VST3_DIR/NoviChords.vst3/Contents/MacOS" "$AU_DIR/NoviChords.component/Contents/MacOS"
+lipo -info "$VST3_DIR/NoviChords.vst3/Contents/MacOS/NoviChords"
 echo "STATUS: done $(date)"

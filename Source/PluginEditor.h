@@ -3,11 +3,11 @@
 #include <juce_audio_processors/juce_audio_processors.h>
 #include "PluginProcessor.h"
 
-class NeoChordsEditor : public juce::AudioProcessorEditor, private juce::Timer
+class NoviChordsEditor : public juce::AudioProcessorEditor, private juce::Timer
 {
 public:
-    explicit NeoChordsEditor (NeoChordsProcessor&);
-    ~NeoChordsEditor() override;
+    explicit NoviChordsEditor (NoviChordsProcessor&);
+    ~NoviChordsEditor() override;
 
     void paint (juce::Graphics&) override;
     void resized() override;
@@ -36,7 +36,7 @@ private:
     void updateRecorderButtons();
     void saveMidiToMusicFolder();
 
-    NeoChordsProcessor& proc;
+    NoviChordsProcessor& proc;
     neo::ChordEngine engine;
     neo::Settings shownSettings;
     std::vector<neo::Suggestion> suggestions;
@@ -78,5 +78,5 @@ private:
     std::array<juce::Rectangle<float>, 12> keyRects;
     std::vector<std::pair<juce::Rectangle<float>, int>> suggestionRects;
 
-    JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (NeoChordsEditor)
+    JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (NoviChordsEditor)
 };

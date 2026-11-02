@@ -10,7 +10,7 @@ static juce::StringArray namesOf (int count, const char* (*fn) (int))
     return a;
 }
 
-juce::AudioProcessorValueTreeState::ParameterLayout NeoChordsProcessor::createLayout()
+juce::AudioProcessorValueTreeState::ParameterLayout NoviChordsProcessor::createLayout()
 {
     using namespace juce;
     AudioProcessorValueTreeState::ParameterLayout l;
@@ -37,9 +37,9 @@ juce::AudioProcessorValueTreeState::ParameterLayout NeoChordsProcessor::createLa
     return l;
 }
 
-NeoChordsProcessor::NeoChordsProcessor()
+NoviChordsProcessor::NoviChordsProcessor()
     : AudioProcessor (BusesProperties().withOutput ("Output", juce::AudioChannelSet::stereo(), true)),
-      apvts (*this, nullptr, "NeoChords", createLayout())
+      apvts (*this, nullptr, "NoviChords", createLayout())
 {
     pKey        = apvts.getRawParameterValue (ParamID::key);
     pScale      = apvts.getRawParameterValue (ParamID::scale);
@@ -56,12 +56,12 @@ NeoChordsProcessor::NeoChordsProcessor()
     startTimerHz (30);
 }
 
-NeoChordsProcessor::~NeoChordsProcessor()
+NoviChordsProcessor::~NoviChordsProcessor()
 {
     stopTimer();
 }
 
-Settings NeoChordsProcessor::currentSettings() const
+Settings NoviChordsProcessor::currentSettings() const
 {
     Settings s;
     s.key        = juce::roundToInt (pKey->load());
@@ -72,7 +72,7 @@ Settings NeoChordsProcessor::currentSettings() const
     return s;
 }
 
-void NeoChordsProcessor::setKeyAndScale (int key, Scale scale)
+void NoviChordsProcessor::setKeyAndScale (int key, Scale scale)
 {
     auto set = [this] (const char* id, int index) {
         auto* p = apvts.getParameter (id);
@@ -84,14 +84,14 @@ void NeoChordsProcessor::setKeyAndScale (int key, Scale scale)
     set (ParamID::scale, (int) scale);
 }
 
-bool NeoChordsProcessor::isBusesLayoutSupported (const BusesLayout& layouts) const
+bool NoviChordsProcessor::isBusesLayoutSupported (const BusesLayout& layouts) const
 {
     const auto out = layouts.getMainOutputChannelSet();
     return (out == juce::AudioChannelSet::stereo() || out == juce::AudioChannelSet::mono())
         && layouts.getMainInputChannelSet().isDisabled();
 }
 
-void NeoChordsProcessor::prepareToPlay (double sampleRate, int)
+void NoviChordsProcessor::prepareToPlay (double sampleRate, int)
 {
     sr = sampleRate;
     pending.clear();
@@ -100,7 +100,7 @@ void NeoChordsProcessor::prepareToPlay (double sampleRate, int)
     lastUpper.clear();
 }
 
-void NeoChordsProcessor::auditionSlot (int slot, bool on)
+void NoviChordsProcessor::auditionSlot (int slot, bool on)
 {
     const juce::SpinLock::ScopedLockType lock (auditionWriteLock);
     auto scope = auditionFifo.write (1);
@@ -109,7 +109,7 @@ void NeoChordsProcessor::auditionSlot (int slot, bool on)
 }
 
 //==============================================================================
-void NeoChordsProcessor::pushCapture (const CaptureEvent& e)
+void NoviChordsProcessor::pushCapture (const CaptureEvent& e)
 {
     if (! recording.load())
         return;
@@ -118,7 +118,7 @@ void NeoChordsProcessor::pushCapture (const CaptureEvent& e)
     else if (scope.blockSize2 > 0) captureBuf[(size_t) scope.startIndex2] = e;
 }
 
-void NeoChordsProcessor::noteOn (int n, int velocity, int channel, juce::int64 time, juce::MidiBuffer& out, int pos)
+void NoviChordsProcessor::noteOn (int n, int velocity, int channel, juce::int64 time, juce::MidiBuffer& out, int pos)
 {
     if (held[(size_t) n].active)
         noteOff (n, out, pos, time);
@@ -191,7 +191,7 @@ void NeoChordsProcessor::noteOn (int n, int velocity, int channel, juce::int64 t
     }
 }
 
-void NeoChordsProcessor::noteOff (int n, juce::MidiBuffer& out, int pos, juce::int64 time)
+void NoviChordsProcessor::noteOff (int n, juce::MidiBuffer& out, int pos, juce::int64 time)
 {
     auto& h = held[(size_t) n];
     if (! h.active)
@@ -232,7 +232,7 @@ void NeoChordsProcessor::noteOff (int n, juce::MidiBuffer& out, int pos, juce::i
     h = Held {};
 }
 
-void NeoChordsProcessor::allOff (juce::MidiBuffer& out, int pos)
+void NoviChordsProcessor::allOff (juce::MidiBuffer& out, int pos)
 {
     for (int n = 0; n < 128; ++n)
         if (held[(size_t) n].active)
@@ -241,10 +241,10 @@ void NeoChordsProcessor::allOff (juce::MidiBuffer& out, int pos)
     auditionHeld.fill (false);
 }
 
-void NeoChordsProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::MidiBuffer& midi)
+void NoviChordsProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::MidiBuffer& midi)
 {
     juce::ScopedNoDenormals noDenormals;
-    buffer.clear();   // NeoChords makes no sound itself — it drives your instrument over MIDI
+    buffer.clear();   // NoviChords makes no sound itself — it drives your instrument over MIDI
 
     if (auto* ph = getPlayHead())
         if (auto pos = ph->getPosition())
@@ -310,7 +310,7 @@ void NeoChordsProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::M
 
 //==============================================================================
 // Recorder (message thread)
-void NeoChordsProcessor::startRecording()
+void NoviChordsProcessor::startRecording()
 {
     {
         const juce::ScopedLock sl (takeLock);
@@ -323,7 +323,7 @@ void NeoChordsProcessor::startRecording()
     takeVersion.fetch_add (1);
 }
 
-void NeoChordsProcessor::stopRecording()
+void NoviChordsProcessor::stopRecording()
 {
     recording.store (false);
     timerCallback();   // drain what is left
@@ -337,7 +337,7 @@ void NeoChordsProcessor::stopRecording()
     takeVersion.fetch_add (1);
 }
 
-void NeoChordsProcessor::clearRecording()
+void NoviChordsProcessor::clearRecording()
 {
     recording.store (false);
     captureFifo.reset();
@@ -347,13 +347,13 @@ void NeoChordsProcessor::clearRecording()
     takeVersion.fetch_add (1);
 }
 
-std::vector<CapturedChord> NeoChordsProcessor::getTake() const
+std::vector<CapturedChord> NoviChordsProcessor::getTake() const
 {
     const juce::ScopedLock sl (takeLock);
     return take;
 }
 
-void NeoChordsProcessor::timerCallback()
+void NoviChordsProcessor::timerCallback()
 {
     const int ready = captureFifo.getNumReady();
     if (ready == 0)
@@ -399,7 +399,7 @@ void NeoChordsProcessor::timerCallback()
     takeVersion.fetch_add (1);
 }
 
-const juce::StringArray& NeoChordsProcessor::quantizeNames()
+const juce::StringArray& NoviChordsProcessor::quantizeNames()
 {
     static const juce::StringArray names { "No snap", "Snap 1/16", "Snap 1/8", "Snap 1/4", "Snap 1/2", "Snap 1 bar" };
     return names;
@@ -411,7 +411,7 @@ static double quantizeGrid (int index)
     return grid[juce::jlimit (0, 5, index)];
 }
 
-juce::File NeoChordsProcessor::writeTakeToMidiFile (const juce::File& file, int qIndex) const
+juce::File NoviChordsProcessor::writeTakeToMidiFile (const juce::File& file, int qIndex) const
 {
     const auto chords = getTake();
     if (chords.empty())
@@ -424,7 +424,7 @@ juce::File NeoChordsProcessor::writeTakeToMidiFile (const juce::File& file, int 
     juce::MidiMessageSequence seq;
     seq.addEvent (juce::MidiMessage::tempoMetaEvent (juce::roundToInt (60000000.0 / takeBpm)), 0.0);
     seq.addEvent (juce::MidiMessage::timeSignatureMetaEvent (4, 4), 0.0);
-    seq.addEvent (juce::MidiMessage::textMetaEvent (3, "NeoChords"), 0.0);
+    seq.addEvent (juce::MidiMessage::textMetaEvent (3, "NoviChords"), 0.0);
 
     double lastEnd = 0.0;
     for (const auto& c : chords)
@@ -458,10 +458,10 @@ juce::File NeoChordsProcessor::writeTakeToMidiFile (const juce::File& file, int 
     return file;
 }
 
-juce::File NeoChordsProcessor::writeTakeToTempMidi (int qIndex) const
+juce::File NoviChordsProcessor::writeTakeToTempMidi (int qIndex) const
 {
     const auto chords = getTake();
-    juce::String label = "NeoChords";
+    juce::String label = "NoviChords";
     for (size_t i = 0; i < chords.size() && i < 4; ++i)
         label << " " << chords[i].name;
     label = juce::File::createLegalFileName (label.replace (juce::String::fromUTF8 ("♯"), "#")
@@ -469,17 +469,17 @@ juce::File NeoChordsProcessor::writeTakeToTempMidi (int qIndex) const
                                                   .replace (juce::String::fromUTF8 ("°"), "dim")
                                                   .replace (juce::String::fromUTF8 ("ø"), "hd")
                                                   .replace ("/", "-"));
-    auto dir = juce::File::getSpecialLocation (juce::File::tempDirectory).getChildFile ("NeoChords");
+    auto dir = juce::File::getSpecialLocation (juce::File::tempDirectory).getChildFile ("NoviChords");
     return writeTakeToMidiFile (dir.getChildFile (label + ".mid"), qIndex);
 }
 
 //==============================================================================
-juce::AudioProcessorEditor* NeoChordsProcessor::createEditor()
+juce::AudioProcessorEditor* NoviChordsProcessor::createEditor()
 {
-    return new NeoChordsEditor (*this);
+    return new NoviChordsEditor (*this);
 }
 
-void NeoChordsProcessor::getStateInformation (juce::MemoryBlock& dest)
+void NoviChordsProcessor::getStateInformation (juce::MemoryBlock& dest)
 {
     auto state = apvts.copyState();
     state.setProperty ("quantize", quantizeIndex, nullptr);
@@ -487,7 +487,7 @@ void NeoChordsProcessor::getStateInformation (juce::MemoryBlock& dest)
         copyXmlToBinary (*xml, dest);
 }
 
-void NeoChordsProcessor::setStateInformation (const void* data, int size)
+void NoviChordsProcessor::setStateInformation (const void* data, int size)
 {
     if (auto xml = getXmlFromBinary (data, size))
         if (xml->hasTagName (apvts.state.getType()))
@@ -500,5 +500,5 @@ void NeoChordsProcessor::setStateInformation (const void* data, int size)
 
 juce::AudioProcessor* JUCE_CALLTYPE createPluginFilter()
 {
-    return new NeoChordsProcessor();
+    return new NoviChordsProcessor();
 }
