@@ -1,0 +1,50 @@
+name: Build NeoChords (Mac)
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  mac:
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure (universal: Apple Silicon + Intel)
+        run: cmake -B build -DCMAKE_BUILD_TYPE=Release
+
+      - name: Build VST3, AU and engine tests
+        run: cmake --build build --target NeoChords_VST3 NeoChords_AU EngineTest -j 4
+
+      - name: Run engine tests
+        run: ./build/EngineTest | tail -1
+
+      - name: Sign (ad-hoc) and package
+        run: |
+          ART=build/NeoChords_artefacts/Release
+          codesign --force --deep --sign - "$ART/VST3/NeoChords.vst3"
+          codesign --force --deep --sign - "$ART/AU/NeoChords.component"
+          mkdir -p NeoChords
+          cp -R "$ART/VST3/NeoChords.vst3" "$ART/AU/NeoChords.component" NeoChords/
+          cp packaging/Install-NeoChords.command NeoChords/
+          chmod +x NeoChords/Install-NeoChords.command
+          cp README.md NeoChords/
+          ditto -c -k --keepParent NeoChords NeoChords-mac.zip
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: NeoChords-mac
+          path: NeoChords-mac.zip
+
+      - name: Publish to the "latest" release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: latest
+          name: NeoChords (latest Mac build)
+          body: Download NeoChords-mac.zip, unzip it, then right-click Install-NeoChords.command and choose Open.
+          files: NeoChords-mac.zip
+          make_latest: true
