@@ -4,20 +4,23 @@ using namespace neo;
 
 namespace
 {
-    // NoviChords palette: #331E36 plum, #41337A indigo, #6EA4BF steel blue, #C2EFEB mint
-    const juce::Colour plum      { 0xff331e36 };
-    const juce::Colour indigo    { 0xff41337a };
-    const juce::Colour steel     { 0xff6ea4bf };
-    const juce::Colour mint      { 0xffc2efeb };
+    // NoviChords palette: #0A1045 navy, #F9E900 yellow, #00C2D1 cyan
+    const juce::Colour navy      { 0xff0a1045 };
+    const juce::Colour yellow    { 0xfff9e900 };
+    const juce::Colour cyan      { 0xff00c2d1 };
 
-    const juce::Colour bg        = plum.darker (0.35f);                       // window background
-    const juce::Colour panel     = plum;                                      // panels
+    const juce::Colour plum      = navy;                                      // base surfaces
+    const juce::Colour indigo    = navy.interpolatedWith (cyan, 0.28f);       // raised surfaces, borders
+    const juce::Colour mint      = juce::Colours::white.interpolatedWith (cyan, 0.08f);
+
+    const juce::Colour bg        = navy.darker (0.45f);                       // window background
+    const juce::Colour panel     = navy;                                      // panels
     const juce::Colour panelEdge = indigo;                                    // borders
     const juce::Colour cream     = mint;                                      // main text
-    const juce::Colour muted     = mint.interpolatedWith (plum, 0.42f);       // secondary text
-    const juce::Colour gold      = steel;                                     // accent / active
-    const juce::Colour rose      = indigo.interpolatedWith (mint, 0.45f);     // suggestion badges, colour chords
-    const juce::Colour recRed    { 0xffe0596a };
+    const juce::Colour muted     = mint.interpolatedWith (navy, 0.45f);       // secondary text
+    const juce::Colour gold      = yellow;                                    // accent / active
+    const juce::Colour rose      = cyan;                                      // suggestion badges, colour chords
+    const juce::Colour recRed    { 0xffff4d5e };
     const juce::Colour ivory     = mint;                                      // white keys
     const juce::Colour ebony     = indigo;                                    // black keys
 
@@ -469,14 +472,14 @@ void NoviChordsEditor::paintKeyboard (juce::Graphics& g)
 
     auto drawLabels = [&] (int slot, juce::Rectangle<float> area, bool active, bool dark) {
         const auto textCol = active ? bg : (dark ? cream : ebony);
-        g.setColour (active ? bg : (dark ? gold : indigo));
+        g.setColour (active ? navy : (dark ? gold : navy));
         g.setFont (font (dark ? 12.0f : 14.0f, true));
         g.drawText (u (engine.roman (slot)), area.removeFromTop (dark ? 16.0f : 20.0f), juce::Justification::centred);
         g.setColour (textCol);
         g.setFont (font (dark ? 13.0f : 16.0f, true));
         g.drawFittedText (u (engine.chordName (slot)), area.removeFromTop (dark ? 34.0f : 24.0f).toNearestInt(),
                           juce::Justification::centred, 2, 0.8f);
-        g.setColour (active ? bg.withAlpha (0.7f) : (dark ? muted : indigo.withAlpha (0.7f)));
+        g.setColour (active ? bg.withAlpha (0.7f) : (dark ? muted : navy.withAlpha (0.6f)));
         g.setFont (font (11.0f));
         g.drawText ("key " + u (ChordEngine::keyLabel (slot)), area.removeFromTop (16.0f), juce::Justification::centred);
     };
@@ -685,7 +688,7 @@ void NoviChordsEditor::paintCircle (juce::Graphics& g, juce::Rectangle<float> ar
             seg.addPieSegment (circleCentre.x - r1, circleCentre.y - r1, r1 * 2.0f, r1 * 2.0f,
                                ((float) i - 0.5f) * pi / 6.0f, ((float) i + 0.5f) * pi / 6.0f, r0 / r1);
 
-            juce::Colour fill = ring == 0 ? plum.brighter (0.25f) : plum.brighter (0.12f);
+            juce::Colour fill = ring == 0 ? navy.interpolatedWith (cyan, 0.12f) : navy.interpolatedWith (cyan, 0.06f);
             if (m.diatonic) fill = indigo;
             if (m.current)  fill = gold;
             if (hover)      fill = fill.brighter (0.15f);
@@ -800,7 +803,7 @@ void NoviChordsEditor::paintRecorder (juce::Graphics& g, juce::Rectangle<float> 
     }
     else if (! take.empty())
     {
-        g.setColour (steel);
+        g.setColour (cyan);
         g.setFont (font (12.5f, true));
         g.drawText (u8 ("✓ MIDI captured · ") + juce::String ((int) take.size()) + " chords · "
                     + juce::String (bars, bars < 10 ? 1 : 0) + " bars @ " + juce::String (juce::roundToInt (proc.getTakeBpm())) + " BPM",
