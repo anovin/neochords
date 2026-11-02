@@ -4,16 +4,20 @@ using namespace neo;
 
 namespace
 {
-    // NoviChords palette: #0A1045 navy, #F9E900 yellow, #00C2D1 cyan
-    const juce::Colour navy      { 0xff0a1045 };
-    const juce::Colour yellow    { 0xfff9e900 };
-    const juce::Colour cyan      { 0xff00c2d1 };
+    // NoviChords palette: #533A71 purple, #6184D8 blue, #50C5B7 teal, #9CEC5B green, #F0F465 yellow
+    const juce::Colour purple    { 0xff533a71 };
+    const juce::Colour blue      { 0xff6184d8 };
+    const juce::Colour teal      { 0xff50c5b7 };
+    const juce::Colour green     { 0xff9cec5b };
+    const juce::Colour yellow    { 0xfff0f465 };
+    const juce::Colour navy      = purple.darker (0.45f);                     // dark base (panels, text on light keys)
+    const juce::Colour cyan      = teal;
 
     const juce::Colour plum      = navy;                                      // base surfaces
-    const juce::Colour indigo    = navy.interpolatedWith (cyan, 0.28f);       // raised surfaces, borders
-    const juce::Colour mint      = juce::Colours::white.interpolatedWith (cyan, 0.08f);
+    const juce::Colour indigo    = purple;                                    // raised surfaces, borders, black keys
+    const juce::Colour mint      = juce::Colours::white.interpolatedWith (yellow, 0.07f);
 
-    const juce::Colour bg        = navy.darker (0.45f);                       // window background
+    const juce::Colour bg        = purple.darker (0.75f);                       // window background
     const juce::Colour panel     = navy;                                      // panels
     const juce::Colour panelEdge = indigo;                                    // borders
     const juce::Colour cream     = mint;                                      // main text
@@ -689,7 +693,7 @@ void NoviChordsEditor::paintCircle (juce::Graphics& g, juce::Rectangle<float> ar
                                ((float) i - 0.5f) * pi / 6.0f, ((float) i + 0.5f) * pi / 6.0f, r0 / r1);
 
             juce::Colour fill = ring == 0 ? navy.interpolatedWith (cyan, 0.12f) : navy.interpolatedWith (cyan, 0.06f);
-            if (m.diatonic) fill = indigo;
+            if (m.diatonic) fill = blue;
             if (m.current)  fill = gold;
             if (hover)      fill = fill.brighter (0.15f);
             g.setColour (fill);
@@ -803,7 +807,7 @@ void NoviChordsEditor::paintRecorder (juce::Graphics& g, juce::Rectangle<float> 
     }
     else if (! take.empty())
     {
-        g.setColour (cyan);
+        g.setColour (green);
         g.setFont (font (12.5f, true));
         g.drawText (u8 ("✓ MIDI captured · ") + juce::String ((int) take.size()) + " chords · "
                     + juce::String (bars, bars < 10 ? 1 : 0) + " bars @ " + juce::String (juce::roundToInt (proc.getTakeBpm())) + " BPM",
@@ -867,14 +871,14 @@ void NoviChordsEditor::paintRecorder (juce::Graphics& g, juce::Rectangle<float> 
 
     // drag strip
     const bool canDrag = ! take.empty() && ! rec;
-    g.setColour (canDrag ? gold.withAlpha (0.16f) : panelEdge.withAlpha (0.25f));
+    g.setColour (canDrag ? green.withAlpha (0.14f) : panelEdge.withAlpha (0.25f));
     g.fillRoundedRectangle (dragStrip, 8.0f);
     juce::Path dash;
     dash.addRoundedRectangle (dragStrip.reduced (1.0f), 8.0f);
     juce::Path dashed;
     const float pattern[] = { 5.0f, 4.0f };
     juce::PathStrokeType (1.3f).createDashedStroke (dashed, dash, pattern, 2);
-    g.setColour (canDrag ? gold : muted.withAlpha (0.5f));
+    g.setColour (canDrag ? green : muted.withAlpha (0.5f));
     g.fillPath (dashed);
 
     auto t = dragStrip.reduced (12.0f, 6.0f);
