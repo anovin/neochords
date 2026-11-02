@@ -16,9 +16,9 @@ int main()
     for (int st = 0; st < (int) Style::Count; ++st)
     {
         Settings s;
-        s.key = 0; s.style = (Style) st; s.scale = Scale::Major;
+        s.key = 0; s.style = (Style) st; s.scale = Scale::Ionian;
         e.update (s);
-        std::printf ("\n=== %s (C major, lush, spread) ===\n", styleName ((Style) st));
+        std::printf ("\n=== %s (C Ionian, lush, spread) ===\n", styleName ((Style) st));
         std::vector<int> prev;
         for (int k = 0; k < 12; ++k)
         {
@@ -27,7 +27,7 @@ int main()
             for (int n : v.all()) std::printf (" %d", n);
             std::printf ("\n");
         }
-        for (auto& p : styleInfo ((Style) st).progressions)
+        for (auto& p : e.styleSet().progressions)
         {
             std::printf ("  prog %-28s:", p.name.c_str());
             for (int k : p.keys) std::printf (" %s", e.chordName (k).c_str());
@@ -73,6 +73,31 @@ int main()
                 for (auto& sg : sug) CHECK (sg.slot != k && ! sg.reason.empty(), "bad suggestion");
             }
         }
+
+    // Every mode: print white-key chords in D
+    for (int sc = 0; sc < (int) Scale::Count; ++sc)
+    {
+        Settings s; s.key = 2; s.scale = (Scale) sc; s.style = Style::NeoSoul; e.update (s);
+        std::printf ("D %-20s:", scaleName ((Scale) sc));
+        for (int k : { 0, 2, 4, 5, 7, 9, 11 }) std::printf (" %s(%s)", e.chordName (k).c_str(), e.roman (k).c_str());
+        std::printf ("\n");
+    }
+    // Minor-flavour style sets
+    for (int st = 0; st < (int) Style::Count; ++st)
+    {
+        Settings s; s.key = 9; s.scale = Scale::Aeolian; s.style = (Style) st; e.update (s);
+        std::printf ("A minor %s black:", styleName ((Style) st));
+        for (int k : { 1, 3, 6, 8, 10 }) std::printf (" %s", e.chordName (k).c_str());
+        for (auto& p : e.styleSet().progressions) { std::printf (" | %s:", p.name.c_str()); for (int k : p.keys) std::printf (" %s", e.chordName (k).c_str()); }
+        std::printf ("\n");
+    }
+    // Deterministic voicing when voice leading is off
+    {
+        Settings s; e.update (s);
+        auto a = e.voice (2, 60, {}, false).all();
+        auto b = e.voice (2, 60, e.voice (9, 60, {}, false).upper, false).all();
+        CHECK (a == b, "voicing not deterministic with voice leading off");
+    }
 
     // Moving C major -> F major key should transpose names
     Settings f; f.key = 5; e.update (f);

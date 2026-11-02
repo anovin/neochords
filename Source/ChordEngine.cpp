@@ -47,13 +47,19 @@ const QualityInfo& info (Quality q)
 
 const char* scaleName (Scale s)
 {
-    static const char* n[] = { "Major", "Natural Minor", "Dorian", "Mixolydian", "Lydian", "Harmonic Minor", "Melodic Minor" };
+    static const char* n[] = { "Ionian (Major)", "Dorian", "Phrygian", "Lydian", "Mixolydian",
+                               "Aeolian (Nat. Minor)", "Locrian", "Harmonic Minor", "Melodic Minor" };
     return n[(int) s];
+}
+
+bool scaleIsMinor (Scale s)
+{
+    return ! (s == Scale::Ionian || s == Scale::Lydian || s == Scale::Mixolydian);
 }
 
 const char* styleName (Style s)
 {
-    static const char* n[] = { "Gospel", "Neo-Soul", "Sade", "Frank Ocean", "Pharrell / Neptunes", "Tyler, the Creator", "OutKast" };
+    static const char* n[] = { "Gospel", "Soul", "Neo-Soul" };
     return n[(int) s];
 }
 
@@ -77,83 +83,75 @@ static Chord col (int root, Quality q, int bass = -1) { return Chord { root, q, 
 const StyleInfo& styleInfo (Style st)
 {
     using Q = Quality;
+    // Major-flavour progressions use white keys as I ii iii IV V vi vii;
+    // minor-flavour ones as i ii iii iv v vi vii of the chosen minor mode.
     static const std::vector<StyleInfo> styles = {
         { "Gospel",
-          "Church harmony: passing diminished chords, secondary dominants, 13ths and the IV/V 'gospel sus'. Built for walk-ups, turnarounds and big Amen endings.",
-          "Major key. Black keys: ♯I°7, III7♯9, ♯IV°7, VI13♭9, IV/V.",
-          { col (1, Q::Dim7), col (4, Q::Dom7s9), col (6, Q::Dim7), col (9, Q::Dom13b9), col (5, Q::Maj9, 7) },
-          { { "Walk-up to the 2",        { 0, 1, 2, 7, 0 } },
-            { "Amen ending",             { 5, 6, 0 } },
-            { "6-2-5-1 turnaround",      { 8, 2, 10, 0 } },
-            { "3-6-2-5-1",               { 3, 9, 2, 10, 0 } } } },
+          "Church harmony: passing diminished chords, secondary dominants, 13ths and the 'gospel sus'. Built for walk-ups, turnarounds and big Amen endings.",
+          { "Black keys: ♯I°7, III7♯9, ♯IV°7, VI13♭9, IV/V.",
+            { col (1, Q::Dim7), col (4, Q::Dom7s9), col (6, Q::Dim7), col (9, Q::Dom13b9), col (5, Q::Maj9, 7) },
+            { { "Walk-up to the 2",          { 0, 1, 2, 7, 0 } },
+              { "Amen ending",               { 5, 6, 0 } },
+              { "6-2-5-1 turnaround",        { 8, 2, 10, 0 } },
+              { "3-6-2-5-1",                 { 3, 9, 2, 10, 0 } } } },
+          { "Black keys: ♭IImaj7, V7♭9, ♯ivø, IV9, II9 (V of V).",
+            { col (1, Q::Maj7), col (7, Q::Dom7b9), col (6, Q::HalfDim7), col (5, Q::Dom9), col (2, Q::Dom9) },
+            { { "Minor 2-5-1",               { 2, 3, 0 } },
+              { "Neapolitan cadence",        { 1, 3, 0 } },
+              { "Minor walk-down",           { 0, 11, 9, 3 } },
+              { "Dorian lift",               { 0, 8, 0 } } } } },
+
+        { "Soul",
+          "Classic soul and R&B: 9th-chord dominants, the II7 and ♭VII9 lifts, I-vi-ii-V changes and backdoor cadences. Warm, gritty and singable.",
+          { "Black keys: II9, ♭IIImaj7, iv m7, ♭VI9, ♭VII9.",
+            { col (2, Q::Dom9), col (3, Q::Maj7), col (5, Q::Min7), col (8, Q::Dom9), col (10, Q::Dom9) },
+            { { "I-vi-ii-V",                 { 0, 9, 2, 7 } },
+              { "I-II9-V-I",                 { 0, 1, 7, 0 } },
+              { "Backdoor (IV-♭VII9-I)",     { 5, 10, 0 } },
+              { "♭VI9-♭VII9-I",              { 8, 10, 0 } } } },
+          { "Black keys: ♭IImaj7, IV9, V7♯9, ♭VI9, II9 (V of V).",
+            { col (1, Q::Maj7), col (5, Q::Dom9), col (7, Q::Dom7s9), col (8, Q::Dom9), col (2, Q::Dom9) },
+            { { "i-IV9 vamp",                { 0, 3 } },
+              { "i-♭VII-♭VI-V",              { 0, 11, 9, 6 } },
+              { "♭VI9-V7♯9-i",               { 8, 6, 0 } },
+              { "Neapolitan to V",           { 1, 6, 0 } } } } },
 
         { "Neo-Soul",
-          "Lush m9/maj9 colours, sus dominants and chords borrowed from the parallel minor. Warm, behind-the-beat Rhodes harmony.",
-          "Major or Dorian. Black keys: ♭II, ♭III, iv, ♭VI, ♭VII13 borrowed colours.",
-          { col (1, Q::Maj9), col (3, Q::Maj9), col (5, Q::Min9), col (8, Q::Maj9), col (10, Q::Dom13) },
-          { { "2-5-1-6 loop",            { 2, 7, 0, 9 } },
-            { "IV-iii-ii-I descent",     { 5, 4, 2, 0 } },
-            { "Backdoor home (iv-♭VII-I)", { 6, 10, 0 } },
-            { "Chromatic slide down",    { 0, 3, 2, 1, 0 } } } },
-
-        { "Sade",
-          "Smooth, minor-leaning quiet storm: m9/m11 vamps, the Dorian IV9, ♭VI and ♭VII colours, and a Phrygian ♭II for tension.",
-          "Best with Natural Minor or Dorian. Black keys: ♭IImaj7, IV9, v m9, ♭VImaj9, ♭VII6/9.",
-          { col (1, Q::Maj7), col (5, Q::Dom9), col (7, Q::Min9), col (8, Q::Maj9), col (10, Q::SixNine) },
-          { { "Two-chord vamp (i-IV9)",  { 0, 3 } },
-            { "i-♭VI-♭VII",              { 0, 8, 10 } },
-            { "Slow descent",            { 0, 10, 8, 6 } },
-            { "Phrygian lift",           { 0, 1, 0 } } } },
-
-        { "Frank Ocean",
-          "Open, floating harmony: add9 and maj9 chords, descending IV-iii-ii lines, the bright Lydian II and the bittersweet borrowed iv.",
-          "Major key. Black keys: II add9, IIImaj9, iv m9, ♭VImaj9, ♭VII add9.",
-          { col (2, Q::Add9), col (4, Q::Maj9), col (5, Q::Min9), col (8, Q::Maj9), col (10, Q::Add9) },
-          { { "IV-iii-ii-I",             { 5, 4, 2, 0 } },
-            { "Lydian lift to minor iv", { 0, 1, 6, 0 } },
-            { "vi-IV-I-V (open)",        { 9, 5, 0, 7 } },
-            { "I-III-IV-iv",             { 0, 3, 5, 6 } } } },
-
-        { "Pharrell / Neptunes",
-          "Bright Lydian sparkle: maj9♯11 everywhere, chromatic-mediant jumps, ♯ivø tension and ♭VII13 lifts. Spacious, synth-friendly.",
-          "Major or Lydian. Black keys: ♭II, ♭III and ♭VI maj9♯11, ♯ivø, ♭VII13.",
-          { col (1, Q::Maj9s11), col (3, Q::Maj9s11), col (6, Q::HalfDim7), col (8, Q::Maj9s11), col (10, Q::Dom13) },
-          { { "I-♭III-IV-I float",       { 0, 3, 5, 0 } },
-            { "Mediant hop",             { 0, 8, 0, 3 } },
-            { "Semitone shimmer",        { 0, 1, 0, 1 } },
-            { "ii-♭VII13-I",             { 2, 10, 0 } } } },
-
-        { "Tyler, the Creator",
-          "Jazzy-pop colour: maj7/maj9 chords, borrowed iv and ♭VI, the III7♯9 pull to vi, and chromatic moves between them.",
-          "Major key. Black keys: III7♯9, ♭IIImaj9, iv m9, ♭VImaj9, ♭VII add9.",
-          { col (4, Q::Dom7s9), col (3, Q::Maj9), col (5, Q::Min9), col (8, Q::Maj9), col (10, Q::Add9) },
-          { { "IV-iii-vi-iv",            { 5, 4, 9, 6 } },
-            { "I-III7-vi (bittersweet)", { 0, 1, 9 } },
-            { "♭VI-♭VII-I",              { 8, 10, 0 } },
-            { "IV-iv-I",                 { 5, 6, 0 } } } },
-
-        { "OutKast",
-          "Funk-soul ATL flavour: 9th and 7♯9 dominants, Dorian minor vamps, ♭III9 and ♭VII9 riffs, and tritone turnarounds.",
-          "Major, Mixolydian or Dorian. Black keys: ♭II13, ♭III9, IV9, ♭VI9, ♭VII9.",
-          { col (1, Q::Dom13), col (3, Q::Dom9), col (5, Q::Dom9), col (8, Q::Dom9), col (10, Q::Dom9) },
-          { { "One-chord funk to IV9",   { 0, 6 } },
-            { "Blues-funk turn",         { 0, 3, 6, 0 } },
-            { "Tritone turnaround",      { 2, 1, 0 } },
-            { "Hard cadence (IV9-V7♯9-I)", { 6, 7, 0 } } } },
+          "Lush m9/maj9 colours, 13sus dominants and chords borrowed from the parallel minor. Warm, behind-the-beat Rhodes harmony.",
+          { "Black keys: ♭IImaj9, ♭IIImaj9, iv m9, ♭VImaj9, ♭VII13.",
+            { col (1, Q::Maj9), col (3, Q::Maj9), col (5, Q::Min9), col (8, Q::Maj9), col (10, Q::Dom13) },
+            { { "2-5-1-6 loop",              { 2, 7, 0, 9 } },
+              { "IV-iii-ii-I descent",       { 5, 4, 2, 0 } },
+              { "Backdoor home (iv-♭VII-I)", { 6, 10, 0 } },
+              { "Chromatic slide down",      { 0, 3, 2, 1, 0 } } } },
+          { "Black keys: ♭IImaj9, IV9, v m9, ♭VI9, V7♯9.",
+            { col (1, Q::Maj9), col (5, Q::Dom9), col (7, Q::Min9), col (8, Q::Dom9), col (7, Q::Dom7s9) },
+            { { "i-IV9 Dorian vamp",         { 0, 3 } },
+              { "♭VI-V7♯9-i",                { 9, 10, 0 } },
+              { "i-v-♭VI",                   { 0, 6, 8 } },
+              { "Phrygian ♭II",              { 0, 1, 0 } } } } },
     };
     return styles[(size_t) st];
 }
 
 //==============================================================================
-static const std::array<std::array<int, 7>, 7> kScales = { {
-    { 0, 2, 4, 5, 7, 9, 11 },   // Major
-    { 0, 2, 3, 5, 7, 8, 10 },   // Natural minor
+static const std::array<std::array<int, 7>, 9> kScales = { {
+    { 0, 2, 4, 5, 7, 9, 11 },   // Ionian
     { 0, 2, 3, 5, 7, 9, 10 },   // Dorian
-    { 0, 2, 4, 5, 7, 9, 10 },   // Mixolydian
+    { 0, 1, 3, 5, 7, 8, 10 },   // Phrygian
     { 0, 2, 4, 6, 7, 9, 11 },   // Lydian
+    { 0, 2, 4, 5, 7, 9, 10 },   // Mixolydian
+    { 0, 2, 3, 5, 7, 8, 10 },   // Aeolian
+    { 0, 1, 3, 5, 6, 8, 10 },   // Locrian
     { 0, 2, 3, 5, 7, 8, 11 },   // Harmonic minor
     { 0, 2, 3, 5, 7, 9, 11 },   // Melodic minor
 } };
+
+const StyleSet& ChordEngine::styleSet() const
+{
+    const auto& si = styleInfo (s.style);
+    return minorMode() ? si.minor : si.major;
+}
 
 static const int kWhiteSlots[7] = { 0, 2, 4, 5, 7, 9, 11 };
 static const int kBlackSlots[5] = { 1, 3, 6, 8, 10 };
@@ -253,13 +251,12 @@ Chord ChordEngine::diatonic (int degree) const
     if (third == 4 && fifth == 7 && seventh == 11)              // major 7
     {
         if (! nat9)                         lush = Quality::Maj7;
-        else if (eleventh == 6 && (degree == 0 || st == Style::Pharrell || st == Style::NeoSoul))
+        else if (eleventh == 6 && (degree == 0 || st == Style::NeoSoul))
                                             lush = Quality::Maj9s11;     // Lydian colour
         else switch (st)
         {
             case Style::Gospel:     lush = degree == 0 ? Quality::SixNine : Quality::Maj13; break;
             case Style::NeoSoul:    lush = Quality::Maj13; break;
-            case Style::Pharrell:   lush = Quality::Maj9s11; break;
             default:                lush = Quality::Maj9; break;
         }
     }
@@ -268,16 +265,14 @@ Chord ChordEngine::diatonic (int degree) const
         if (! nat9)                         lush = thirteenth == 9 ? Quality::Dom13b9 : Quality::Dom7b9;
         else switch (st)
         {
-            case Style::NeoSoul:
-            case Style::Sade:
-            case Style::FrankOcean: lush = Quality::Dom13sus; break;
-            case Style::OutKast:    lush = c.root == 7 ? Quality::Dom7s9 : Quality::Dom9; break;
+            case Style::NeoSoul:    lush = Quality::Dom13sus; break;
+            case Style::Soul:       lush = Quality::Dom9; break;
             default:                lush = thirteenth == 9 ? Quality::Dom13 : Quality::Dom9; break;
         }
     }
     else if (third == 3 && fifth == 7 && seventh == 10)         // minor 7
     {
-        lush = nat9 ? (st == Style::OutKast ? Quality::Min9 : Quality::Min11) : Quality::Min7;
+        lush = nat9 ? (st == Style::Soul ? Quality::Min9 : Quality::Min11) : Quality::Min7;
     }
     else if (third == 3 && fifth == 6 && seventh == 10)         // half-diminished
     {
@@ -307,17 +302,17 @@ void ChordEngine::update (const Settings& settings)
 
     // Spell with sharps for sharp keys (judged from the relative major for minor modes).
     // Find the parent major key so notes are spelled the way the key signature would.
-    static const int toParentMajor[] = { 0, 3, 10, 5, 7, 3, 3 };   // Major, NatMin, Dorian, Mixo, Lydian, HarmMin, MelMin
+    static const int toParentMajor[] = { 0, 10, 8, 7, 5, 3, 1, 3, 3 };   // Ionian .. Locrian, HarmMin, MelMin
     const int relMajor = (s.key + toParentMajor[(int) s.scale]) % 12;
     useSharps = relMajor == 7 || relMajor == 2 || relMajor == 9 || relMajor == 4 || relMajor == 11;
 
     for (int d = 0; d < 7; ++d)
         chords[(size_t) kWhiteSlots[d]] = diatonic (d);
 
-    const auto& si = styleInfo (s.style);
+    const auto& set = styleSet();
     for (int i = 0; i < 5; ++i)
     {
-        Chord c = si.colour[(size_t) i];
+        Chord c = set.colour[(size_t) i];
         c.quality = reduce (c.quality, s.complexity);
         chords[(size_t) kBlackSlots[i]] = c;
     }
@@ -327,7 +322,10 @@ std::string ChordEngine::chordName (int slot) const
 {
     const Chord& c = chord (slot);
     // Passing diminished chords read better spelled with sharps (C♯°7 rather than D♭°7).
-    const bool sharpDim = info (c.quality).family == Family::Dim && (c.root == 1 || c.root == 6 || c.root == 8);
+    // The leading tone (C♯ in D minor) is spelled sharp as well.
+    const Family fam = info (c.quality).family;
+    const bool sharpDim = ((fam == Family::Dim || fam == Family::HalfDim) && (c.root == 1 || c.root == 6 || c.root == 8))
+                          || c.root == 11;
     static const char* sharps[] = { "C", "C♯", "D", "D♯", "E", "F", "F♯", "G", "G♯", "A", "A♯", "B" };
     std::string n = (sharpDim && ! useSharps ? std::string (sharps[(s.key + c.root) % 12]) : noteName (s.key + c.root))
                     + info (c.quality).suffix;
@@ -347,7 +345,9 @@ std::string ChordEngine::roman (int slot) const
     std::string r;
     const bool lower = f == Family::Minor || f == Family::HalfDim || f == Family::Dim || f == Family::MinMaj;
 
-    if (f == Family::Dim && c.root == 1)       r = "♯i";
+    if (c.root == 6 && minorMode() && ! (f == Family::Dim || f == Family::HalfDim))
+        r = lower ? "♭v" : "♭V";
+    else if (f == Family::Dim && c.root == 1)  r = "♯i";
     else if (f == Family::Dim && c.root == 8)  r = "♯v";
     else                                       r = lower ? low[c.root] : up[c.root];
 
@@ -541,11 +541,11 @@ std::vector<Suggestion> ChordEngine::suggest (int fromSlot, int count) const
     const Chord& a = chords[(size_t) fromSlot];
     const Family fa = info (a.quality).family;
     const Style st = s.style;
-    const auto& si = styleInfo (st);
+    const auto& set = styleSet();
 
-    const bool stepStyle    = st == Style::NeoSoul || st == Style::FrankOcean || st == Style::Tyler || st == Style::Pharrell;
-    const bool mediantStyle = st == Style::Pharrell || st == Style::Tyler || st == Style::FrankOcean;
-    const bool vampStyle    = st == Style::Sade || st == Style::OutKast || st == Style::NeoSoul;
+    const bool stepStyle    = st == Style::NeoSoul;
+    const bool mediantStyle = st == Style::NeoSoul;
+    const bool vampStyle    = st == Style::Soul || st == Style::NeoSoul || minorMode();
     const bool domA = fa == Family::Dominant || fa == Family::Sus || a.bass == 7;   // IV/V acts as V
 
     std::vector<Suggestion> out;
@@ -567,7 +567,7 @@ std::vector<Suggestion> ChordEngine::suggest (int fromSlot, int count) const
         };
 
         // Signature progressions of the style carry the most weight.
-        for (auto& p : si.progressions)
+        for (auto& p : set.progressions)
             for (size_t i = 0; i + 1 < p.keys.size(); ++i)
                 if (p.keys[i] == fromSlot && p.keys[i + 1] == t)
                     add (7, "Next chord in “" + p.name + "”");

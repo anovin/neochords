@@ -18,11 +18,22 @@ namespace ParamID
     inline constexpr const char* humanize   = "humanize";
 }
 
-class NeoChordsProcessor : public juce::AudioProcessor
+// One chord in a recorded take (times in quarter-note beats from the first chord).
+struct CapturedChord
+{
+    juce::String name, roman;
+    std::vector<int> notes;
+    int velocity = 100;
+    double start = 0.0;
+    double end = -1.0;            // -1 while the key is still held
+    int inputNote = -1;
+};
+
+class NeoChordsProcessor : public juce::AudioProcessor, private juce::Timer
 {
 public:
     NeoChordsProcessor();
-    ~NeoChordsProcessor() override = default;
+    ~NeoChordsProcessor() override;
 
     void prepareToPlay (double sampleRate, int samplesPerBlock) override;
     void releaseResources() override {}
@@ -51,6 +62,7 @@ public:
     // Shared with the editor --------------------------------------------------
     juce::AudioProcessorValueTreeState apvts;
     neo::Settings currentSettings() const;
+    void setKeyAndScale (int key, neo::Scale scale);
 
     // Click-to-audition from the UI (thread-safe)
     void auditionSlot (int slot, bool on);
@@ -61,8 +73,24 @@ public:
     std::array<std::atomic<int>, 16> lastNotes {};
     std::atomic<int> playCounter { 0 };
 
+    // Chord recorder (message thread) ----------------------------------------
+    void startRecording();            // clears the previous take and arms
+    void stopRecording();
+    void clearRecording();
+    bool isRecording() const          { return recording.load(); }
+    std::vector<CapturedChord> getTake() const;
+    double getTakeBpm() const         { return takeBpm; }
+    int getTakeVersion() const        { return takeVersion.load(); }
+
+    static const juce::StringArray& quantizeNames();
+    // Writes the take as a standard MIDI file; returns the file (or {} if the take is empty).
+    juce::File writeTakeToMidiFile (const juce::File& file, int quantizeIndex) const;
+    juce::File writeTakeToTempMidi (int quantizeIndex) const;
+    int quantizeIndex = 2;            // editor setting, kept with the plugin state
+
 private:
     static juce::AudioProcessorValueTreeState::ParameterLayout createLayout();
+    void timerCallback() override;
 
     struct Held
     {
@@ -79,9 +107,22 @@ private:
         int sourceNote;
     };
 
+    struct CaptureEvent
+    {
+        bool on = true;
+        int inputNote = 0;
+        int slot = 0;
+        int velocity = 0;
+        neo::Settings settings;
+        int count = 0;
+        std::array<int, 16> notes {};
+        double seconds = 0.0;
+    };
+
     void noteOn (int inputNote, int velocity, int channel, juce::int64 time, juce::MidiBuffer& out, int pos);
-    void noteOff (int inputNote, juce::MidiBuffer& out, int pos);
+    void noteOff (int inputNote, juce::MidiBuffer& out, int pos, juce::int64 time);
     void allOff (juce::MidiBuffer& out, int pos);
+    void pushCapture (const CaptureEvent&);
 
     neo::ChordEngine engine;
     std::array<Held, 128> held {};
@@ -97,6 +138,18 @@ private:
     std::array<int, 64> auditionBuf {};
     juce::SpinLock auditionWriteLock;
     std::array<bool, 12> auditionHeld {};
+
+    // recorder
+    std::atomic<bool> recording { false };
+    std::atomic<double> hostBpm { 120.0 };
+    juce::AbstractFifo captureFifo { 512 };
+    std::array<CaptureEvent, 512> captureBuf {};
+    mutable juce::CriticalSection takeLock;
+    std::vector<CapturedChord> take;
+    double takeStartSeconds = -1.0;
+    double takeBpm = 120.0;
+    std::atomic<int> takeVersion { 0 };
+    neo::ChordEngine nameEngine;      // message-thread copy for chord names
 
     std::atomic<float>* pKey = nullptr;
     std::atomic<float>* pScale = nullptr;

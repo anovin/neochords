@@ -11,38 +11,35 @@ The mapping repeats in every octave. The octave you play in sets the register.
 | **White keys** C D E F G A B | The 7 chords of your chosen key and scale (I ii iii IV V vi vii in major) |
 | **Black keys** C♯ D♯ F♯ G♯ A♯ | 5 "colour" chords picked for the current style |
 
-Change the Key and Scale and every chord follows, so all 12 keys work in every mode. Each style has its own black-key colour chords:
+Change the key or scale and every chord follows. All 12 keys work with all 7 modes (Ionian, Dorian, Phrygian, Lydian, Mixolydian, Aeolian, Locrian) plus harmonic and melodic minor.
 
-| Style | Black-key colour chords | Character |
+| Style | Major-key colour chords | Minor-key colour chords |
 |---|---|---|
-| Gospel | ♯I°7, III7♯9, ♯IV°7, VI13♭9, IV/V | Walk-ups, passing diminished chords, secondary dominants, Amen endings |
-| Neo-Soul | ♭IImaj9, ♭IIImaj9, iv m9, ♭VImaj9, ♭VII13 | Lush borrowed colours, sus dominants, backdoor cadences |
-| Sade | ♭IImaj7, IV9, v m9, ♭VImaj9, ♭VII6/9 | Minor and Dorian vamps, quiet-storm smoothness |
-| Frank Ocean | II add9, IIImaj9, iv m9, ♭VImaj9, ♭VII add9 | Open add9 colours, Lydian II, bittersweet minor iv |
-| Pharrell / Neptunes | ♭II, ♭III and ♭VI maj9♯11, ♯ivø, ♭VII13 | Lydian sparkle, chromatic-mediant jumps |
-| Tyler, the Creator | III7♯9, ♭IIImaj9, iv m9, ♭VImaj9, ♭VII add9 | Jazzy-pop borrowed chords, chromatic moves |
-| OutKast | ♭II13, ♭III9, IV9, ♭VI9, ♭VII9 | Funk dominants, Dorian vamps, tritone turnarounds |
+| Gospel | ♯I°7, III7♯9, ♯IV°7, VI13♭9, IV/V | ♭IImaj7, V7♭9, ♯ivø, IV9, II9 |
+| Soul | II9, ♭IIImaj7, iv m7, ♭VI9, ♭VII9 | ♭IImaj7, IV9, V7♯9, ♭VI9, II9 |
+| Neo-Soul | ♭IImaj9, ♭IIImaj9, iv m9, ♭VImaj9, ♭VII13 | ♭IImaj9, IV9, v m9, ♭VI9, V7♯9 |
 
-The style also changes the diatonic chords. For example, Gospel's tonic is a 6/9 and its V is a 13, Neo-Soul and Sade use 13sus4 dominants, and Pharrell uses maj9♯11.
-
-These profiles are a musical interpretation of each artist's typical harmonic vocabulary, not transcriptions of specific songs.
+The style also changes the diatonic chords. For example, Gospel's tonic is a 6/9, Soul uses 9th chords, and Neo-Soul uses 13sus dominants and maj9♯11 colours.
 
 ## Controls
 
-- **Key / Scale**: Major, Natural Minor, Dorian, Mixolydian, Lydian, Harmonic Minor, Melodic Minor
-- **Style**: the seven profiles above
+- **Key / Scale**: any of the 12 keys, 9 scales
+- **Style**: Gospel, Soul, Neo-Soul
 - **Complexity**: Triads, 7ths, 9ths, or Lush (11ths and 13ths)
-- **Voicing**:
-  - Spread (LH + RH): bass and 7th in the left hand, colour tones in the right. Classic neo-soul piano.
-  - Rootless + bass
-  - Close
-  - Drop 2
-- **Voice leading**: picks the inversion that moves least from the last chord, so progressions glide
-- **Octave**: shifts the whole register
-- **Strum**: rolls the chord from the bass upward (0–120 ms)
-- **Humanize**: random velocity variation
+- **Voicing**: Spread (LH + RH), Rootless + bass, Close, Drop 2
+- **Smooth voice leading**: off by default, so a key plays the identical chord every time. Turn it on to have inversions follow the previous chord.
+- **Octave**, **Strum** (0–120 ms), **Humanize** (velocity variation, off by default)
 
-The **Try Next** panel ranks five follow-up chords and gives the reason for each (resolutions, chromatic slides, the style's signature progressions). The same five are numbered on the key map. You can click any key or suggestion to hear it.
+**Try Next** ranks five follow-up chords and says why each fits.
+
+**Circle of fifths**: majors on the outer ring, relative minors on the inner ring. Click a segment to change key. Your key's chords are lit with their numerals, the style's colour chords are outlined in rose, the chord you're playing is gold, and the numbered suggestions appear where they sit on the circle. The centre shows the relative key and the neighbouring keys (one step either way is the smoothest key change).
+
+**Chord recorder**:
+1. Press **● Rec**, play your chords, then **Stop**. The panel shows "MIDI captured" with a mini piano roll.
+2. Pick a **Snap** grid (or No snap).
+3. Drag the **Drag MIDI into FL Studio** strip onto a channel, the piano roll or the playlist. **Save .mid** writes the file to `Music/NeoChords` and shows it in Finder.
+
+The recorder captures the full voiced chords at the project tempo.
 
 ## Install (Mac)
 

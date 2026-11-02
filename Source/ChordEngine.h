@@ -2,7 +2,7 @@
 // NeoChords chord engine — pure C++ (no JUCE), so it can be unit-tested on its own.
 //
 // Mapping (one key = one chord), repeated in every octave:
-//   White keys C D E F G A B -> the 7 diatonic chords of the chosen key + scale (I..VII)
+//   White keys C D E F G A B -> the 7 diatonic chords of the chosen key + scale (degrees 1..7)
 //   Black keys C# D# F# G# A# -> 5 "colour" chords chosen per style
 //                                (passing diminished, secondary dominants, borrowed chords...)
 
@@ -35,8 +35,8 @@ struct QualityInfo
 
 const QualityInfo& info (Quality q);
 
-enum class Scale { Major, NaturalMinor, Dorian, Mixolydian, Lydian, HarmonicMinor, MelodicMinor, Count };
-enum class Style { Gospel, NeoSoul, Sade, FrankOcean, Pharrell, Tyler, OutKast, Count };
+enum class Scale { Ionian, Dorian, Phrygian, Lydian, Mixolydian, Aeolian, Locrian, HarmonicMinor, MelodicMinor, Count };
+enum class Style { Gospel, Soul, NeoSoul, Count };
 enum class Complexity { Triads, Sevenths, Ninths, Lush, Count };
 enum class Voicing { Spread, RootlessBass, Close, Drop2, Count };
 
@@ -44,6 +44,7 @@ const char* scaleName (Scale);
 const char* styleName (Style);
 const char* complexityName (Complexity);
 const char* voicingName (Voicing);
+bool scaleIsMinor (Scale);         // true when the scale has a minor 3rd
 
 struct Chord
 {
@@ -56,7 +57,7 @@ struct Chord
 struct Settings
 {
     int key = 0;                  // 0 = C ... 11 = B
-    Scale scale = Scale::Major;
+    Scale scale = Scale::Ionian;
     Style style = Style::NeoSoul;
     Complexity complexity = Complexity::Lush;
     Voicing voicing = Voicing::Spread;
@@ -75,13 +76,18 @@ struct Progression
     std::vector<int> keys;        // keyboard slots (0 = C key ... 11 = B key)
 };
 
+struct StyleSet                   // one flavour (major or minor) of a style
+{
+    std::string tip;
+    std::array<Chord, 5> colour;  // black-key chords (C#, D#, F#, G#, A#), at "lush" quality
+    std::vector<Progression> progressions;
+};
+
 struct StyleInfo
 {
     std::string name;
     std::string blurb;
-    std::string tip;              // suggested scale / usage tip
-    std::array<Chord, 5> colour;  // black-key chords (C#, D#, F#, G#, A#), at "lush" quality
-    std::vector<Progression> progressions;
+    StyleSet major, minor;
 };
 
 const StyleInfo& styleInfo (Style);
@@ -113,14 +119,18 @@ public:
 
     void update (const Settings&);
     const Settings& settings() const { return s; }
+    bool minorMode() const { return scaleIsMinor (s.scale); }
+    const StyleSet& styleSet() const;
 
     const Chord& chord (int slot) const { return chords[(size_t) (((slot % 12) + 12) % 12)]; }
 
     std::string chordName (int slot) const;
     std::string roman (int slot) const;
     std::vector<int> pitchClasses (int slot) const;   // absolute pitch classes, bass first
+    int absoluteRoot (int slot) const { return (s.key + chord (slot).root) % 12; }
 
-    // centre = MIDI note the right hand should sit around; previousUpper = last right-hand notes
+    // centre = MIDI note the right hand should sit around.
+    // voiceLead = false gives the same voicing every time for a given key and octave.
     Voiced voice (int slot, int centre, const std::vector<int>& previousUpper, bool voiceLead) const;
 
     std::vector<Suggestion> suggest (int fromSlot, int count = 5) const;
