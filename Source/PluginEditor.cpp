@@ -4,28 +4,31 @@ using namespace neo;
 
 namespace
 {
-    // NoviChords palette: #533A71 purple, #6184D8 blue, #50C5B7 teal, #9CEC5B green, #F0F465 yellow
-    const juce::Colour purple    { 0xff533a71 };
-    const juce::Colour blue      { 0xff6184d8 };
-    const juce::Colour teal      { 0xff50c5b7 };
-    const juce::Colour green     { 0xff9cec5b };
-    const juce::Colour yellow    { 0xfff0f465 };
-    const juce::Colour navy      = purple.darker (0.45f);                     // dark base (panels, text on light keys)
+    // NoviChords palette: #A30000 red, #FF7700 orange, #004777 deep blue, #EFD28D sand, #00AFB5 teal
+    const juce::Colour red       { 0xffa30000 };
+    const juce::Colour orange    { 0xffff7700 };
+    const juce::Colour deepBlue  { 0xff004777 };
+    const juce::Colour sand      { 0xffefd28d };
+    const juce::Colour teal      { 0xff00afb5 };
+
+    const juce::Colour navy      = deepBlue.darker (0.45f);                   // dark base (panels, text on light keys)
     const juce::Colour cyan      = teal;
+    const juce::Colour blue      = red;                                       // your key's chords on the circle
+    const juce::Colour green     = teal;                                      // "MIDI captured", drag strip
+    const juce::Colour yellow    = orange;
+    const juce::Colour plum      = navy;
+    const juce::Colour indigo    = deepBlue;                                  // raised surfaces, borders, black keys
+    const juce::Colour mint      = juce::Colours::white.interpolatedWith (sand, 0.35f);
 
-    const juce::Colour plum      = navy;                                      // base surfaces
-    const juce::Colour indigo    = purple;                                    // raised surfaces, borders, black keys
-    const juce::Colour mint      = juce::Colours::white.interpolatedWith (yellow, 0.07f);
-
-    const juce::Colour bg        = purple.darker (0.75f);                       // window background
+    const juce::Colour bg        = deepBlue.darker (0.8f);                    // window background
     const juce::Colour panel     = navy;                                      // panels
     const juce::Colour panelEdge = indigo;                                    // borders
     const juce::Colour cream     = mint;                                      // main text
-    const juce::Colour muted     = mint.interpolatedWith (navy, 0.45f);       // secondary text
-    const juce::Colour gold      = yellow;                                    // accent / active
-    const juce::Colour rose      = cyan;                                      // suggestion badges, colour chords
-    const juce::Colour recRed    { 0xffff4d5e };
-    const juce::Colour ivory     = mint;                                      // white keys
+    const juce::Colour muted     = sand.interpolatedWith (navy, 0.4f);        // secondary text
+    const juce::Colour gold      = orange;                                    // accent / active
+    const juce::Colour rose      = teal;                                      // suggestion badges, colour chords
+    const juce::Colour recRed    = red.brighter (0.6f);
+    const juce::Colour ivory     = juce::Colours::white.interpolatedWith (sand, 0.5f);                                      // white keys
     const juce::Colour ebony     = indigo;                                    // black keys
 
     constexpr int W = 1200, H = 780;
@@ -727,7 +730,7 @@ void NoviChordsEditor::paintCircle (juce::Graphics& g, juce::Rectangle<float> ar
                         juce::Rectangle<float> (60.0f, 16.0f).withCentre ({ c.x, c.y - lift }), juce::Justification::centred);
             if (hasRoman)
             {
-                g.setColour (m.current ? bg : (m.colour && ! m.diatonic ? rose : gold));
+                g.setColour (m.current ? bg : (m.colour && ! m.diatonic ? rose : (m.diatonic ? sand : gold)));
                 g.setFont (font (9.5f, true));
                 g.drawFittedText (m.roman, juce::Rectangle<float> (52.0f, 12.0f).withCentre ({ c.x, c.y + 9.0f }).toNearestInt(),
                                   juce::Justification::centred, 1, 0.6f);
