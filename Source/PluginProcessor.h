@@ -87,6 +87,7 @@ public:
     juce::File writeTakeToMidiFile (const juce::File& file, int quantizeIndex) const;
     juce::File writeTakeToTempMidi (int quantizeIndex) const;
     int quantizeIndex = 2;            // editor setting, kept with the plugin state
+    int mapView = 0;                  // harmony map: 0 = circle, 1 = grid, 2 = flow
 
 private:
     static juce::AudioProcessorValueTreeState::ParameterLayout createLayout();

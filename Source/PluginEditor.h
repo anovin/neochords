@@ -30,7 +30,11 @@ private:
     void paintNowPlaying (juce::Graphics&, juce::Rectangle<float>);
     void paintSuggestions (juce::Graphics&, juce::Rectangle<float>);
     void paintStyle (juce::Graphics&, juce::Rectangle<float>);
+    void paintMapPanel (juce::Graphics&, juce::Rectangle<float>);
     void paintCircle (juce::Graphics&, juce::Rectangle<float>);
+    void paintGrid (juce::Graphics&, juce::Rectangle<float>);
+    void paintFlow (juce::Graphics&, juce::Rectangle<float>);
+    int hitTestMap (juce::Point<float>) const;   // grid / flow: slot under the mouse, or -1
     void paintRecorder (juce::Graphics&, juce::Rectangle<float>);
 
     void updateRecorderButtons();
@@ -77,6 +81,10 @@ private:
     float rOuter = 0, rMid = 0, rInner = 0;
     std::array<juce::Rectangle<float>, 12> keyRects;
     std::vector<std::pair<juce::Rectangle<float>, int>> suggestionRects;
+    std::array<juce::Rectangle<float>, 3> viewTabs;
+    juce::Rectangle<float> mapContent;
+    std::vector<std::pair<juce::Path, int>> mapHits;
+    int hoverMapSlot = -1;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (NoviChordsEditor)
 };

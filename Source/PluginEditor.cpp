@@ -269,6 +269,14 @@ void NoviChordsEditor::resized()
     circleArea = { rightX, 128.0f, 300.0f, 342.0f };
     recArea    = { rightX, 482.0f, 300.0f, (float) H - 482.0f - 20.0f };
 
+    // harmony map: view tabs in the title row, content between title and hint line
+    {
+        const float tw = 46.0f, gap = 4.0f;
+        float tx = circleArea.getRight() - 14.0f - 3.0f * tw - 2.0f * gap;
+        for (auto& t : viewTabs) { t = { tx, circleArea.getY() + 9.0f, tw, 19.0f }; tx += tw + gap; }
+        mapContent = circleArea.withTrimmedTop (36.0f).withTrimmedBottom (28.0f).reduced (10.0f, 0.0f);
+    }
+
     // circle geometry
     const float d = juce::jmin (circleArea.getWidth() - 48.0f, circleArea.getHeight() - 70.0f);
     circleCentre = { circleArea.getCentreX(), circleArea.getY() + 44.0f + d * 0.5f };
@@ -320,6 +328,8 @@ int NoviChordsEditor::hitTestSlot (juce::Point<float> p) const
 
 std::pair<int, int> NoviChordsEditor::hitTestCircle (juce::Point<float> p) const
 {
+    if (proc.mapView != 0)
+        return { -1, -1 };
     const auto d = p - circleCentre;
     const float r = std::hypot (d.x, d.y);
     int ring = -1;
@@ -348,8 +358,26 @@ std::pair<int, int> NoviChordsEditor::circlePosFor (int pc, Family f) const
     return { 1, (((pc - 9 + 12) % 12) * 7) % 12 };
 }
 
+int NoviChordsEditor::hitTestMap (juce::Point<float> p) const
+{
+    if (proc.mapView == 0 || ! mapContent.contains (p))
+        return -1;
+    for (auto it = mapHits.rbegin(); it != mapHits.rend(); ++it)
+        if (it->first.contains (p))
+            return it->second;
+    return -1;
+}
+
 void NoviChordsEditor::mouseMove (const juce::MouseEvent& e)
 {
+    const int hm = hitTestMap (e.position);
+    bool overTab = false;
+    for (auto& t : viewTabs) overTab |= t.contains (e.position);
+    if (hm != hoverMapSlot)
+    {
+        hoverMapSlot = hm;
+        repaint (circleArea.toNearestInt());
+    }
     const auto h = hitTestCircle (e.position);
     if (h != hoverCircle)
     {
@@ -358,7 +386,7 @@ void NoviChordsEditor::mouseMove (const juce::MouseEvent& e)
     }
     const bool overStrip = dragStrip.contains (e.position) && ! take.empty() && ! proc.isRecording();
     setMouseCursor (overStrip ? juce::MouseCursor::DraggingHandCursor
-                              : (h.first >= 0 || hitTestSlot (e.position) >= 0 ? juce::MouseCursor::PointingHandCursor
+                              : (h.first >= 0 || hm >= 0 || overTab || hitTestSlot (e.position) >= 0 ? juce::MouseCursor::PointingHandCursor
                                                                                 : juce::MouseCursor::NormalCursor));
 }
 
@@ -368,6 +396,23 @@ void NoviChordsEditor::mouseDown (const juce::MouseEvent& e)
     dragFromStrip = dragStrip.contains (e.position) && ! take.empty() && ! proc.isRecording();
     if (dragFromStrip)
         return;
+
+    for (int i = 0; i < 3; ++i)
+        if (viewTabs[(size_t) i].contains (e.position))
+        {
+            proc.mapView = i;
+            hoverCircle = { -1, -1 };
+            hoverMapSlot = -1;
+            repaint (circleArea.toNearestInt());
+            return;
+        }
+
+    if (const int mapSlot = hitTestMap (e.position); mapSlot >= 0)
+    {
+        pressedSlot = mapSlot;
+        proc.auditionSlot (mapSlot, true);
+        return;
+    }
 
     const auto [ring, idx] = hitTestCircle (e.position);
     if (ring >= 0)
@@ -457,7 +502,7 @@ void NoviChordsEditor::paint (juce::Graphics& g)
     paintNowPlaying (g, nowArea);
     paintSuggestions (g, nextArea);
     paintStyle (g, styleArea);
-    paintCircle (g, circleArea);
+    paintMapPanel (g, circleArea);
     paintRecorder (g, recArea);
 }
 
@@ -648,10 +693,321 @@ void NoviChordsEditor::paintStyle (juce::Graphics& g, juce::Rectangle<float> r)
 }
 
 //==============================================================================
+void NoviChordsEditor::paintMapPanel (juce::Graphics& g, juce::Rectangle<float> area)
+{
+    static const char* titles[] = { "CIRCLE OF FIFTHS", "HARMONIC GRID", "CHORD FLOW" };
+    static const char* tabs[]   = { "Circle", "Grid", "Flow" };
+    static const char* hints[]  = { "Click a key on the circle to change key",
+                                    "Touching triangles share two notes · click to play",
+                                    "Home → Away → Tension → Home · click to play" };
+    const int view = juce::jlimit (0, 2, proc.mapView);
+
+    drawPanel (g, area, titles[view]);
+
+    for (int i = 0; i < 3; ++i)
+    {
+        auto t = viewTabs[(size_t) i];
+        const bool on = i == view;
+        g.setColour (on ? gold : panelEdge.withAlpha (0.6f));
+        g.fillRoundedRectangle (t, 9.5f);
+        g.setColour (on ? bg : cream);
+        g.setFont (font (11.0f, on));
+        g.drawText (tabs[i], t, juce::Justification::centred);
+    }
+
+    g.setColour (muted);
+    g.setFont (font (10.5f));
+    g.drawFittedText (u8 (hints[view]), area.withTop (area.getBottom() - 26.0f).reduced (14.0f, 4.0f).toNearestInt(),
+                      juce::Justification::centred, 1, 0.8f);
+
+    mapHits.clear();
+    if (view == 0)      paintCircle (g, area);
+    else if (view == 1) paintGrid (g, mapContent);
+    else                paintFlow (g, mapContent);
+}
+
+//==============================================================================
+// Harmonic grid (Tonnetz): right = up a fifth, up-right = up a major third, down-right = up a minor third.
+// Upward triangles are major triads, downward triangles are minor triads.
+void NoviChordsEditor::paintGrid (juce::Graphics& g, juce::Rectangle<float> area)
+{
+    juce::Graphics::ScopedSaveState save (g);
+    g.reduceClipRegion (area.toNearestInt());
+
+    const bool minorNow = engine.minorMode();
+    const int key = shownSettings.key;
+    const float dx = 64.0f, dy = dx * 0.866f;
+
+    auto pcAt = [key] (int c, int r) { return (((key + 7 * c + 4 * r) % 12) + 12) % 12; };
+    const juce::Point<float> tonicCentroidOffset { 0.5f * dx, minorNow ? dy / 3.0f : -dy / 3.0f };
+    const auto origin = area.getCentre() - tonicCentroidOffset;
+    auto pos = [&] (int c, int r) { return juce::Point<float> { origin.x + ((float) c + (float) r * 0.5f) * dx, origin.y - (float) r * dy }; };
+
+    struct Tri
+    {
+        juce::Path path;
+        juce::Point<float> centroid;
+        bool major = true;
+        int root = 0;
+        juce::String roman;
+        bool diatonic = false, colour = false, current = false;
+        int suggestion = 0, slot = -1;
+    };
+    std::vector<Tri> tris;
+
+    for (int r = -5; r <= 5; ++r)
+        for (int c = -9; c <= 9; ++c)
+            for (int major = 0; major < 2; ++major)
+            {
+                const auto a = pos (c, r), b = pos (c + 1, r);
+                const auto d = major ? pos (c, r + 1) : pos (c + 1, r - 1);
+                Tri t;
+                t.major = major == 1;
+                t.root = pcAt (c, r);
+                t.centroid = (a + b + d) / 3.0f;
+                if (! area.expanded (14.0f).contains (t.centroid))
+                    continue;
+                t.path.addTriangle (a, b, d);
+                tris.push_back (std::move (t));
+            }
+
+    // Place each of the 12 playable chords on its nearest matching triangle
+    auto nearest = [&] (bool major, int root) -> Tri* {
+        Tri* best = nullptr;
+        float bestD = 1e9f;
+        for (auto& t : tris)
+            if (t.major == major && t.root == root
+                && area.reduced (14.0f, 10.0f).withTrimmedBottom (14.0f).contains (t.centroid))
+            {
+                const float dd = t.centroid.getDistanceFrom (area.getCentre());
+                if (dd < bestD) { bestD = dd; best = &t; }
+            }
+        return best;
+    };
+    auto triFor = [&] (int slot) -> Tri* {
+        const auto fam = info (engine.chord (slot).quality).family;
+        if (fam == Family::Dim || fam == Family::HalfDim)
+            return nullptr;   // diminished chords are not triangles on this grid
+        return nearest (majorLike (fam), engine.absoluteRoot (slot));
+    };
+
+    for (int slot = 0; slot < 12; ++slot)
+        if (auto* t = triFor (slot))
+        {
+            const auto rn = u (engine.roman (slot));
+            if (t->roman.isEmpty()) t->roman = rn;
+            else if (! t->roman.contains (rn)) t->roman << " " << rn;
+            if (engine.chord (slot).diatonic) t->diatonic = true; else t->colour = true;
+            if (slot == currentSlot) { t->current = true; t->slot = slot; }
+            if (t->slot < 0 || (t->diatonic && ! engine.chord (t->slot).diatonic)) t->slot = slot;
+        }
+    for (size_t i = 0; i < suggestions.size(); ++i)
+        if (auto* t = triFor (suggestions[i].slot))
+            if (t->suggestion == 0) t->suggestion = (int) i + 1;
+
+    // Triangles
+    for (auto& t : tris)
+    {
+        juce::Colour fill = t.major ? navy.interpolatedWith (cyan, 0.13f) : navy.interpolatedWith (cyan, 0.06f);
+        if (t.diatonic) fill = blue;
+        if (t.current)  fill = gold;
+        if (t.slot >= 0 && t.slot == hoverMapSlot) fill = fill.brighter (0.2f);
+        g.setColour (fill);
+        g.fillPath (t.path);
+        g.setColour (bg);
+        g.strokePath (t.path, juce::PathStrokeType (1.5f));
+        if (t.colour && ! t.current)
+        {
+            g.setColour (rose);
+            auto inset = t.path;
+            inset.applyTransform (juce::AffineTransform::scale (0.82f, 0.82f, t.centroid.x, t.centroid.y));
+            g.strokePath (inset, juce::PathStrokeType (1.4f));
+        }
+
+        const bool marked = t.slot >= 0;
+        if (marked)
+            mapHits.push_back ({ t.path, t.slot });
+
+        const auto name = u (engine.noteName (t.root)) + (t.major ? "" : "m");
+        const float lift = marked ? 5.0f : 0.0f;
+        g.setColour (t.current ? bg : (marked ? cream : muted.withAlpha (0.5f)));
+        g.setFont (font (marked ? 12.5f : 10.5f, marked));
+        g.drawText (name, juce::Rectangle<float> (40.0f, 13.0f).withCentre ({ t.centroid.x, t.centroid.y - lift }), juce::Justification::centred);
+        if (marked)
+        {
+            g.setColour (t.current ? bg : (t.colour && ! t.diatonic ? rose : (t.diatonic ? sand : gold)));
+            g.setFont (font (9.0f, true));
+            g.drawFittedText (t.roman, juce::Rectangle<float> (36.0f, 11.0f).withCentre ({ t.centroid.x, t.centroid.y + 7.0f }).toNearestInt(),
+                              juce::Justification::centred, 1, 0.6f);
+        }
+        if (t.suggestion > 0)
+        {
+            const auto bp = t.centroid + juce::Point<float> (17.0f, t.major ? 8.0f : -8.0f);
+            auto b = juce::Rectangle<float> (13.0f, 13.0f).withCentre (bp);
+            g.setColour (rose);
+            g.fillEllipse (b);
+            g.setColour (bg);
+            g.setFont (font (9.0f, true));
+            g.drawText (juce::String (t.suggestion), b, juce::Justification::centred);
+        }
+    }
+
+    // Note names on the grid points
+    for (int r = -5; r <= 5; ++r)
+        for (int c = -9; c <= 9; ++c)
+        {
+            const auto p = pos (c, r);
+            if (! area.expanded (6.0f).contains (p)) continue;
+            auto dot = juce::Rectangle<float> (17.0f, 17.0f).withCentre (p);
+            const bool tonic = pcAt (c, r) == key;
+            g.setColour (tonic ? gold : bg);
+            g.fillEllipse (dot);
+            g.setColour (tonic ? bg : muted);
+            g.setFont (font (8.5f, tonic));
+            g.drawText (u (engine.noteName (pcAt (c, r))), dot, juce::Justification::centred);
+        }
+
+    // axis legend
+    g.setColour (panel.withAlpha (0.85f));
+    auto legend = area.withTop (area.getBottom() - 16.0f).withWidth (190.0f);
+    g.fillRoundedRectangle (legend, 4.0f);
+    g.setColour (muted);
+    g.setFont (font (9.5f));
+    g.drawText (u8 ("→ 5th   ↗ maj 3rd   ↘ min 3rd"), legend.reduced (5.0f, 0.0f), juce::Justification::centredLeft);
+}
+
+//==============================================================================
+// Chord flow: chords grouped by job — Home (tonic), Away (pre-dominant), Tension (dominant) —
+// plus the style's colour chords, with arrows from what's playing to the suggestions.
+void NoviChordsEditor::paintFlow (juce::Graphics& g, juce::Rectangle<float> area)
+{
+    static const char* heads[] = { "HOME", "AWAY", "TENSION" };
+    const std::vector<std::vector<int>> columns = { { 0, 9, 4 }, { 5, 2 }, { 7, 11 } };
+    const int colourSlots[5] = { 1, 3, 6, 8, 10 };
+
+    std::array<juce::Rectangle<float>, 12> rects {};
+    const float colW = area.getWidth() / 3.0f;
+    auto header = area.removeFromTop (18.0f);
+    auto colourRow = area.removeFromBottom (54.0f);
+    area.removeFromBottom (6.0f);
+
+    // headers with flow arrows between them
+    for (int i = 0; i < 3; ++i)
+    {
+        auto h = header.withX (header.getX() + colW * (float) i).withWidth (colW);
+        g.setColour (muted);
+        g.setFont (font (10.0f, true));
+        g.drawText (heads[i], h, juce::Justification::centred);
+        if (i < 2)
+        {
+            g.setColour (muted.withAlpha (0.6f));
+            g.drawText (u8 ("→"), h.withX (h.getRight() - 8.0f).withWidth (16.0f), juce::Justification::centred);
+        }
+    }
+
+    for (int ci = 0; ci < 3; ++ci)
+    {
+        const auto& col = columns[(size_t) ci];
+        const float nodeH = 38.0f, gapY = 12.0f;
+        const float total = (float) col.size() * nodeH + (float) (col.size() - 1) * gapY;
+        float y = area.getCentreY() - total * 0.5f;
+        for (int slot : col)
+        {
+            rects[(size_t) slot] = { area.getX() + colW * (float) ci + 5.0f, y, colW - 10.0f, nodeH };
+            y += nodeH + gapY;
+        }
+    }
+
+    g.setColour (muted);
+    g.setFont (font (9.5f, true));
+    g.drawText ("COLOUR CHORDS", colourRow.removeFromTop (14.0f), juce::Justification::centredLeft);
+    {
+        const float gap = 5.0f;
+        const float w = (colourRow.getWidth() - 4.0f * gap) / 5.0f;
+        for (int i = 0; i < 5; ++i)
+            rects[(size_t) colourSlots[i]] = { colourRow.getX() + (float) i * (w + gap), colourRow.getY() + 2.0f, w, 36.0f };
+    }
+
+    // arrows: playing chord -> each suggestion (or Home -> Away -> Tension -> Home when idle)
+    auto edgePoint = [] (juce::Rectangle<float> r, juce::Point<float> towards) {
+        const auto c = r.getCentre();
+        auto d = towards - c;
+        const float tx = std::abs (d.x) > 0.001f ? (r.getWidth() * 0.5f) / std::abs (d.x) : 1e9f;
+        const float ty = std::abs (d.y) > 0.001f ? (r.getHeight() * 0.5f) / std::abs (d.y) : 1e9f;
+        return c + d * juce::jmin (tx, ty);
+    };
+    auto drawArrow = [&] (int from, int to, juce::Colour col, float thick) {
+        const auto a = rects[(size_t) from], b = rects[(size_t) to];
+        const auto p0 = edgePoint (a, b.getCentre());
+        const auto p1 = edgePoint (b, a.getCentre());
+        juce::Path arrow;
+        arrow.addArrow ({ p0, p1 }, thick, thick * 4.5f, thick * 4.5f);
+        g.setColour (col);
+        g.fillPath (arrow);
+    };
+
+    if (currentSlot >= 0)
+    {
+        for (int i = (int) suggestions.size() - 1; i >= 0; --i)
+            drawArrow (currentSlot, suggestions[(size_t) i].slot, rose.withAlpha (i == 0 ? 0.95f : 0.45f), i == 0 ? 2.2f : 1.4f);
+    }
+    else
+    {
+        drawArrow (0, 5, muted.withAlpha (0.35f), 1.2f);
+        drawArrow (5, 7, muted.withAlpha (0.35f), 1.2f);
+        drawArrow (7, 0, muted.withAlpha (0.35f), 1.2f);
+    }
+
+    std::array<int, 12> rank {};
+    for (size_t i = 0; i < suggestions.size(); ++i)
+        rank[(size_t) suggestions[i].slot] = (int) i + 1;
+
+    for (int slot = 0; slot < 12; ++slot)
+    {
+        auto r = rects[(size_t) slot];
+        if (r.isEmpty()) continue;
+        const auto& c = engine.chord (slot);
+        const bool current = slot == currentSlot;
+
+        juce::Colour fill = c.diatonic ? blue : navy.interpolatedWith (cyan, 0.12f);
+        if (current) fill = gold;
+        if (slot == hoverMapSlot) fill = fill.brighter (0.2f);
+        g.setColour (fill);
+        g.fillRoundedRectangle (r, 7.0f);
+        if (! c.diatonic && ! current)
+        {
+            g.setColour (rose);
+            g.drawRoundedRectangle (r.reduced (0.5f), 7.0f, 1.3f);
+        }
+
+        juce::Path hit;
+        hit.addRoundedRectangle (r, 7.0f);
+        mapHits.push_back ({ hit, slot });
+
+        auto t = r.reduced (4.0f, 3.0f);
+        g.setColour (current ? bg : cream);
+        g.setFont (font (c.diatonic ? 12.0f : 10.5f, true));
+        g.drawFittedText (u (engine.chordName (slot)), t.removeFromTop (t.getHeight() * 0.55f).toNearestInt(),
+                          juce::Justification::centred, 1, 0.6f);
+        g.setColour (current ? bg : (c.diatonic ? sand : rose));
+        g.setFont (font (9.5f, true));
+        g.drawFittedText (u (engine.roman (slot)), t.toNearestInt(), juce::Justification::centred, 1, 0.6f);
+
+        if (rank[(size_t) slot] > 0)
+        {
+            auto b = juce::Rectangle<float> (14.0f, 14.0f).withCentre ({ r.getRight() - 2.0f, r.getY() + 2.0f });
+            g.setColour (rose);
+            g.fillEllipse (b);
+            g.setColour (bg);
+            g.setFont (font (9.0f, true));
+            g.drawText (juce::String (rank[(size_t) slot]), b, juce::Justification::centred);
+        }
+    }
+}
+
 void NoviChordsEditor::paintCircle (juce::Graphics& g, juce::Rectangle<float> area)
 {
-    drawPanel (g, area, u8 ("CIRCLE OF FIFTHS  ·  click to change key"));
-
+    juce::ignoreUnused (area);
     const auto pi = juce::MathConstants<float>::pi;
     const bool minorNow = engine.minorMode();
 

@@ -483,6 +483,7 @@ void NoviChordsProcessor::getStateInformation (juce::MemoryBlock& dest)
 {
     auto state = apvts.copyState();
     state.setProperty ("quantize", quantizeIndex, nullptr);
+    state.setProperty ("mapView", mapView, nullptr);
     if (auto xml = state.createXml())
         copyXmlToBinary (*xml, dest);
 }
@@ -494,6 +495,7 @@ void NoviChordsProcessor::setStateInformation (const void* data, int size)
         {
             auto tree = juce::ValueTree::fromXml (*xml);
             quantizeIndex = (int) tree.getProperty ("quantize", 2);
+            mapView = juce::jlimit (0, 2, (int) tree.getProperty ("mapView", 0));
             apvts.replaceState (tree);
         }
 }
