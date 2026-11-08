@@ -398,6 +398,16 @@ void NoviChordsEditor::mouseMove (const juce::MouseEvent& e)
                                                                                 : juce::MouseCursor::NormalCursor));
 }
 
+void NoviChordsEditor::mouseWheelMove (const juce::MouseEvent& e, const juce::MouseWheelDetails& w)
+{
+    if (proc.sigSource > 0 && recipeListArea.contains (e.position))
+    {
+        auto& sc = recipeScroll[(size_t) proc.sigSource];
+        sc = juce::jlimit (0.0f, recipeScrollMax, sc - w.deltaY * 160.0f);
+        repaint (styleArea.toNearestInt());
+    }
+}
+
 void NoviChordsEditor::mouseDown (const juce::MouseEvent& e)
 {
     dragStarted = false;
@@ -419,12 +429,16 @@ void NoviChordsEditor::mouseDown (const juce::MouseEvent& e)
     {
         if (! sh.r.contains (e.position))
             continue;
+        if ((sh.type == 5 || sh.type == 6 || sh.type == 8) && ! recipeListArea.contains (e.position))
+            continue;   // part of a row scrolled out of view
         if (sh.type == 0)
         {
             if (proc.seqRow.load() == sh.index)
                 proc.stopProgression();
             else
             {
+                proc.clearRecipe();          // style moves use the key's own chords
+                engine.update (proc.currentSettings());
                 static const double beats[] = { 2.0, 4.0, 8.0 };
                 const auto& progs = engine.styleSet().progressions;
                 if (sh.index < (int) progs.size())
@@ -438,7 +452,43 @@ void NoviChordsEditor::mouseDown (const juce::MouseEvent& e)
         }
         else if (sh.type == 2) proc.sigLengthIndex = sh.index;
         else if (sh.type == 3) proc.sigLoop = ! proc.sigLoop;
-        repaint (styleArea.toNearestInt());
+        else if (sh.type == 4) proc.sigSource = sh.index;
+        else if (sh.type == 5)
+        {
+            if (proc.seqRow.load() == 100 + sh.index)
+                proc.stopProgression();
+            else
+            {
+                proc.loadRecipe (sh.index);
+                const auto& rc = recipes()[(size_t) sh.index];
+                const auto steps = recipeLayout (sh.index, -1).stepsA;
+                proc.playSteps (100 + sh.index, steps, std::vector<double> (steps.size(), rc.beats), proc.sigLoop);
+            }
+        }
+        else if (sh.type == 6)
+        {
+            proc.recipeToMidi (sh.index);
+            recorderMessage = juce::String::fromUTF8 ("⇩ ") + juce::String::fromUTF8 (recipes()[(size_t) sh.index].name.c_str()) + " is in the recorder";
+        }
+        else if (sh.type == 7)
+        {
+            if (proc.seqRow.load() >= 100) proc.stopProgression();
+            proc.clearRecipe();
+        }
+        else if (sh.type == 8)
+        {
+            proc.loadRecipe (sh.index / 64);
+            pressedSlot = sh.index % 64;
+            proc.auditionSlot (pressedSlot, true);
+        }
+        else if (sh.type == 9)
+        {
+            const auto fam = proc.sigSource == 2 ? RecipeFamily::Sade : RecipeFamily::Neptunes;
+            const auto desc = proc.writeSection (fam);
+            recorderMessage = desc.isNotEmpty() ? juce::String::fromUTF8 ("✦ Section written — drag it in") : juce::String();
+        }
+        refreshEngine();
+        repaint();
         return;
     }
 
@@ -731,17 +781,211 @@ void NoviChordsEditor::drawMiniKeys (juce::Graphics& g, juce::Rectangle<float> r
     }
 }
 
+void NoviChordsEditor::paintRecipes (juce::Graphics& g, juce::Rectangle<float> a, RecipeFamily family)
+{
+    const auto& list = recipes();
+    const int ra = proc.activeRecipeA.load(), rb = proc.activeRecipeB.load();
+    const int playingRow = proc.seqRow.load(), playingStep = proc.seqStep.load();
+    static const char* keyNames[] = { "C", "D♭", "D", "E♭", "E", "F", "F♯", "G", "A♭", "A", "B♭", "B" };
+
+    // ✦ Write a section + loop
+    {
+        auto row = a.removeFromTop (30.0f);
+        auto btn = row.removeFromLeft (168.0f);
+        g.setColour (gold);
+        g.fillRoundedRectangle (btn, 8.0f);
+        g.setColour (bg);
+        g.setFont (font (13.0f, true));
+        g.drawText (juce::String::fromUTF8 ("✦  Write me a section"), btn, juce::Justification::centred);
+        sigHits.push_back ({ btn, 9, 0 });
+
+        auto loop = row.removeFromRight (60.0f).reduced (2.0f, 5.0f);
+        g.setColour (proc.sigLoop ? rose : panelEdge.withAlpha (0.6f));
+        g.fillRoundedRectangle (loop, 9.0f);
+        g.setColour (proc.sigLoop ? bg : cream);
+        g.setFont (font (10.5f, proc.sigLoop));
+        g.drawText (juce::String::fromUTF8 ("⟳ Loop"), loop, juce::Justification::centred);
+        sigHits.push_back ({ loop, 3, 0 });
+    }
+    a.removeFromTop (5.0f);
+
+    // status line: what's on the keys
+    {
+        auto row = a.removeFromTop (30.0f);
+        g.setColour (juce::Colours::white.withAlpha (0.04f));
+        g.fillRoundedRectangle (row, 6.0f);
+        auto inner = row.reduced (8.0f, 2.0f);
+        if (ra >= 0)
+        {
+            auto clear = inner.removeFromRight (52.0f).withSizeKeepingCentre (52.0f, 18.0f);
+            g.setColour (panelEdge.withAlpha (0.8f));
+            g.fillRoundedRectangle (clear, 9.0f);
+            g.setColour (cream);
+            g.setFont (font (10.0f));
+            g.drawText (juce::String::fromUTF8 ("✕ Clear"), clear, juce::Justification::centred);
+            sigHits.push_back ({ clear, 7, 0 });
+
+            const bool section = rb >= 0 && proc.lastSection.isNotEmpty();
+            g.setColour (muted);
+            g.setFont (font (9.5f, true));
+            g.drawText (section ? "SECTION ON YOUR KEYS + IN THE RECORDER" : "ON YOUR KEYS (from C)", inner.removeFromTop (12.0f), juce::Justification::centredLeft);
+            g.setColour (cream);
+            g.setFont (font (11.5f, true));
+            g.drawFittedText (section ? proc.lastSection : juce::String::fromUTF8 (list[(size_t) ra].name.c_str()),
+                              inner.toNearestInt(), juce::Justification::centredLeft, 1, 0.7f);
+        }
+        else
+        {
+            g.setColour (muted);
+            g.setFont (font (10.5f));
+            g.drawFittedText (juce::String::fromUTF8 ("▶ plays a recipe on your keys  ·  ⇩ MIDI puts it in the recorder  ·  ✦ writes verse → bridge → verse"),
+                              inner.toNearestInt(), juce::Justification::centredLeft, 2, 0.8f);
+        }
+    }
+    a.removeFromTop (6.0f);
+
+    // scrolling list of recipes
+    recipeListArea = a;
+    std::vector<int> ids;
+    for (int i = 0; i < (int) list.size(); ++i)
+        if (list[(size_t) i].family == family) ids.push_back (i);
+
+    const float rowH = 74.0f;
+    recipeScrollMax = juce::jmax (0.0f, rowH * (float) ids.size() - a.getHeight());
+    auto& scroll = recipeScroll[(size_t) proc.sigSource];
+    scroll = juce::jlimit (0.0f, recipeScrollMax, scroll);
+
+    juce::Graphics::ScopedSaveState save (g);
+    g.reduceClipRegion (a.toNearestInt());
+
+    ChordEngine re;
+    for (size_t k = 0; k < ids.size(); ++k)
+    {
+        const int id = ids[k];
+        const auto& rc = list[(size_t) id];
+        auto row = juce::Rectangle<float> (a.getX(), a.getY() + rowH * (float) k - scroll, a.getWidth() - 8.0f, rowH - 4.0f);
+        if (row.getBottom() < a.getY() || row.getY() > a.getBottom())
+            continue;
+
+        const bool playing = playingRow == 100 + id;
+        const bool loaded = ra == id;
+        g.setColour (playing ? gold.withAlpha (0.12f) : juce::Colours::white.withAlpha (loaded ? 0.06f : 0.025f));
+        g.fillRoundedRectangle (row, 7.0f);
+        if (loaded)
+        {
+            g.setColour (gold.withAlpha (0.5f));
+            g.drawRoundedRectangle (row.reduced (0.5f), 7.0f, 1.0f);
+        }
+        auto in = row.reduced (6.0f, 4.0f);
+
+        // header: play, name, MIDI
+        auto head = in.removeFromTop (20.0f);
+        auto btn = head.removeFromLeft (20.0f);
+        g.setColour (playing ? gold : rose);
+        g.fillEllipse (btn);
+        g.setColour (bg);
+        if (playing) g.fillRect (btn.withSizeKeepingCentre (7.0f, 7.0f));
+        else
+        {
+            juce::Path tri;
+            const auto c = btn.getCentre();
+            tri.addTriangle (c.x - 3.0f, c.y - 5.0f, c.x - 3.0f, c.y + 5.0f, c.x + 5.5f, c.y);
+            g.fillPath (tri);
+        }
+        sigHits.push_back ({ btn.expanded (3.0f), 5, id });
+
+        auto midi = head.removeFromRight (54.0f).withSizeKeepingCentre (54.0f, 18.0f);
+        g.setColour (green.withAlpha (0.22f));
+        g.fillRoundedRectangle (midi, 9.0f);
+        g.setColour (green);
+        g.drawRoundedRectangle (midi.reduced (0.5f), 9.0f, 1.0f);
+        g.setFont (font (10.0f, true));
+        g.drawText (juce::String::fromUTF8 ("⇩ MIDI"), midi, juce::Justification::centred);
+        sigHits.push_back ({ midi, 6, id });
+
+        g.setColour (cream);
+        g.setFont (font (12.5f, true));
+        g.drawText (juce::String::fromUTF8 (rc.name.c_str()), head.withTrimmedLeft (7.0f), juce::Justification::centredLeft, true);
+        sigHits.push_back ({ head, 5, id });
+
+        g.setColour (muted);
+        g.setFont (font (9.5f));
+        g.drawText (juce::String::fromUTF8 (rc.sub.c_str()) + juce::String::fromUTF8 ("  ·  orig. ") + juce::String::fromUTF8 (keyNames[rc.origKey])
+                    + juce::String::fromUTF8 (" · ~") + juce::String (rc.bpm) + " BPM",
+                    in.removeFromTop (14.0f), juce::Justification::centredLeft, true);
+        in.removeFromTop (2.0f);
+
+        // chord chips in the current key
+        auto st = shownSettings;
+        st.recipeA = id; st.recipeB = -1;
+        re.update (st);
+        const auto steps = recipeLayout (id, -1).stepsA;
+        const int n = (int) steps.size();
+        const float gap = 3.0f;
+        const float cw = (in.getWidth() - gap * (float) (n - 1)) / (float) juce::jmax (1, n);
+        for (int ci = 0; ci < n; ++ci)
+        {
+            const int slot = steps[(size_t) ci];
+            auto chip = juce::Rectangle<float> (in.getX() + (float) ci * (cw + gap), in.getY(), cw, in.getHeight());
+            const bool lit = playing && playingStep == ci;
+            g.setColour (lit ? gold : blue);
+            g.fillRoundedRectangle (chip, 5.0f);
+            g.setColour (lit ? bg : cream);
+            g.setFont (font (n > 5 ? 9.5f : 11.0f, true));
+            g.drawFittedText (u (re.chordName (slot)), chip.reduced (2.0f, 1.0f).toNearestInt(), juce::Justification::centred, 1, 0.5f);
+            sigHits.push_back ({ chip, 8, id * 64 + slot });
+        }
+    }
+
+    // scroll bar
+    if (recipeScrollMax > 0.0f)
+    {
+        const float frac = a.getHeight() / (a.getHeight() + recipeScrollMax);
+        const float h = juce::jmax (24.0f, a.getHeight() * frac);
+        const float y = a.getY() + (a.getHeight() - h) * (scroll / recipeScrollMax);
+        g.setColour (muted.withAlpha (0.5f));
+        g.fillRoundedRectangle (a.getRight() - 4.0f, y, 3.0f, h, 1.5f);
+    }
+}
+
 void NoviChordsEditor::paintStyle (juce::Graphics& g, juce::Rectangle<float> r)
 {
     const auto& si = styleInfo (shownSettings.style);
     const auto& set = engine.styleSet();
-    drawPanel (g, r, u8 ("SIGNATURE MOVES  ·  ") + u (si.name).toUpperCase() + (engine.minorMode() ? u8 (" · MINOR") : u8 (" · MAJOR")));
+    drawPanel (g, r, proc.sigSource == 0 ? juce::String ("SIGNATURE MOVES")
+                                         : (proc.sigSource == 1 ? juce::String ("PRODUCER RECIPES") : juce::String ("PRODUCER RECIPES")));
     sigHits.clear();
-    auto a = r.reduced (14.0f, 12.0f).withTrimmedTop (22.0f);
+    {
+        static const char* tabNames[] = { "Style", "Neptunes", "Sade" };
+        const float widths[] = { 46.0f, 70.0f, 46.0f };
+        float tx = r.getRight() - 14.0f - (widths[0] + widths[1] + widths[2] + 8.0f);
+        for (int i = 0; i < 3; ++i)
+        {
+            auto t = juce::Rectangle<float> (tx, r.getY() + 9.0f, widths[i], 19.0f);
+            const bool on = proc.sigSource == i;
+            g.setColour (on ? gold : panelEdge.withAlpha (0.6f));
+            g.fillRoundedRectangle (t, 9.5f);
+            g.setColour (on ? bg : cream);
+            g.setFont (font (11.0f, on));
+            g.drawText (tabNames[i], t, juce::Justification::centred);
+            sigHits.push_back ({ t, 4, i });
+            tx += widths[i] + 4.0f;
+        }
+    }
+    auto a = r.reduced (14.0f, 12.0f).withTrimmedTop (24.0f);
+    if (proc.sigSource != 0)
+    {
+        paintRecipes (g, a, proc.sigSource == 2 ? RecipeFamily::Sade : RecipeFamily::Neptunes);
+        return;
+    }
+    g.setColour (gold);
+    g.setFont (font (10.5f, true));
+    g.drawText (u (si.name).toUpperCase() + (engine.minorMode() ? u8 (" · MINOR KEY") : u8 (" · MAJOR KEY")),
+                a.removeFromTop (14.0f), juce::Justification::centredLeft);
 
     g.setColour (cream.withAlpha (0.8f));
     g.setFont (font (11.0f));
-    g.drawFittedText (u (si.blurb), a.removeFromTop (30.0f).toNearestInt(), juce::Justification::topLeft, 2, 0.8f);
+    g.drawFittedText (u (si.blurb), a.removeFromTop (28.0f).toNearestInt(), juce::Justification::topLeft, 2, 0.8f);
     a.removeFromTop (4.0f);
 
     // playback controls: chord length + loop

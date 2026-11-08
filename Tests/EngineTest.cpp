@@ -99,6 +99,46 @@ int main()
         CHECK (a == b, "voicing not deterministic with voice leading off");
     }
 
+    // Recipes: every recipe in every key lays out, voices and names cleanly
+    {
+        auto nm = [] (int n) { static const char* x[] = { "C","C#","D","D#","E","F","F#","G","G#","A","A#","B" }; return std::string (x[n % 12]) + std::to_string (n / 12 - 1); };
+        for (int r = 0; r < (int) recipes().size(); ++r)
+            for (int key = 0; key < 12; ++key)
+            {
+                Settings s; s.key = key; s.recipeA = r; e.update (s);
+                auto lay = recipeLayout (r, -1);
+                CHECK (lay.stepsA.size() == recipes()[(size_t) r].steps.size(), "recipe %d steps lost", r);
+                for (int slot : lay.stepsA)
+                {
+                    auto v = e.voice (slot, 60, {}, false);
+                    auto all = v.all();
+                    std::set<int> uniq (all.begin(), all.end());
+                    CHECK (uniq.size() == all.size() && all.size() >= 3, "recipe %d slot %d bad voicing", r, slot);
+                    std::set<int> pcs; for (int pc : e.pitchClasses (slot)) pcs.insert (pc);
+                    for (int n : all) CHECK (pcs.count (n % 12), "recipe %d wrong note", r);
+                }
+                if (key == recipes()[(size_t) r].origKey)
+                {
+                    std::printf ("R%-2d %-30s:", r, recipes()[(size_t) r].name.c_str());
+                    for (int slot : lay.stepsA) std::printf (" %s(%s)", e.chordName (slot).c_str(), e.roman (slot).c_str());
+                    std::printf ("\n");
+                }
+            }
+        // p.11 voicing check: Dsus7(9) = LH D, RH E-G-C-E
+        int sus = -1;
+        for (int r = 0; r < (int) recipes().size(); ++r) if (recipes()[(size_t) r].name == "Sus vamp") sus = r;
+        Settings s; s.key = 2; s.recipeA = sus; e.update (s);
+        auto v = e.voice (recipeLayout (sus, -1).stepsA[0], 60, {}, false);
+        std::printf ("Dsus7(9) voicing:"); for (int n : v.all()) std::printf (" %s", nm (n).c_str()); std::printf ("\n");
+        auto v2 = e.voice (recipeLayout (sus, -1).stepsA[1], 60, {}, false);
+        std::printf ("Dsus7(9,11) voicing:"); for (int n : v2.all()) std::printf (" %s", nm (n).c_str()); std::printf ("\n");
+        int chain = -1;
+        for (int r = 0; r < (int) recipes().size(); ++r) if (recipes()[(size_t) r].name == "Hugo voicing chain") chain = r;
+        s.key = 5; s.recipeA = chain; e.update (s);
+        for (int slot : recipeLayout (chain, -1).stepsA)
+        { auto vv = e.voice (slot, 60, {}, false); std::printf ("%s:", e.chordName (slot).c_str()); for (int n : vv.all()) std::printf (" %s", nm (n).c_str()); std::printf ("\n"); }
+    }
+
     // Moving C major -> F major key should transpose names
     Settings f; f.key = 5; e.update (f);
     CHECK (e.chordName (0).rfind ("F", 0) == 0, "key F tonic should start with F, got %s", e.chordName (0).c_str());

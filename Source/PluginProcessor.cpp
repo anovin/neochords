@@ -69,6 +69,8 @@ Settings NoviChordsProcessor::currentSettings() const
     s.style      = (Style) juce::roundToInt (pStyle->load());
     s.complexity = (Complexity) juce::roundToInt (pComplexity->load());
     s.voicing    = (Voicing) juce::roundToInt (pVoicing->load());
+    s.recipeA    = activeRecipeA.load();
+    s.recipeB    = activeRecipeB.load();
     return s;
 }
 
@@ -108,16 +110,138 @@ void NoviChordsProcessor::prepareToPlay (double sampleRate, int)
 // Progression player
 void NoviChordsProcessor::playProgression (int rowId, const std::vector<int>& slots, double beatsPerChord, bool loop)
 {
+    playSteps (rowId, slots, std::vector<double> (slots.size(), beatsPerChord), loop);
+}
+
+void NoviChordsProcessor::playSteps (int rowId, const std::vector<int>& slots, const std::vector<double>& beats, bool loop)
+{
     {
         const juce::SpinLock::ScopedLockType sl (seqLock);
         seqReqCount = juce::jmin ((int) slots.size(), (int) seqReqSlots.size());
-        for (int i = 0; i < seqReqCount; ++i) seqReqSlots[(size_t) i] = ((slots[(size_t) i] % 12) + 12) % 12;
-        seqReqBeats = juce::jmax (0.5, beatsPerChord);
+        for (int i = 0; i < seqReqCount; ++i)
+        {
+            seqReqSlots[(size_t) i] = ((slots[(size_t) i] % 12) + 12) % 12;
+            seqReqBeats[(size_t) i] = juce::jmax (0.25, i < (int) beats.size() ? beats[(size_t) i] : 4.0);
+        }
         seqReqLoop = loop;
     }
     seqRow.store (rowId);
     seqStep.store (-1);
     seqStartReq.store (true);
+}
+
+//==============================================================================
+// Producer recipes
+void NoviChordsProcessor::loadRecipe (int recipe, int second)
+{
+    activeRecipeA.store (recipe);
+    activeRecipeB.store (second);
+}
+
+void NoviChordsProcessor::clearRecipe()
+{
+    activeRecipeA.store (-1);
+    activeRecipeB.store (-1);
+    lastSection.clear();
+}
+
+std::vector<int> NoviChordsProcessor::recipeStepsA() const { return recipeLayout (activeRecipeA.load(), activeRecipeB.load()).stepsA; }
+std::vector<int> NoviChordsProcessor::recipeStepsB() const { return recipeLayout (activeRecipeA.load(), activeRecipeB.load()).stepsB; }
+
+void NoviChordsProcessor::setTakeFromSteps (const std::vector<int>& slots, const std::vector<double>& beats)
+{
+    nameEngine.update (currentSettings());
+    const int centre = juce::jlimit (36, 96, 60 + 12 * juce::roundToInt (pOctave->load()));
+
+    std::vector<CapturedChord> chords;
+    double t = 0.0;
+    for (size_t i = 0; i < slots.size(); ++i)
+    {
+        const int slot = slots[i];
+        CapturedChord c;
+        c.name  = juce::String::fromUTF8 (nameEngine.chordName (slot).c_str());
+        c.roman = juce::String::fromUTF8 (nameEngine.roman (slot).c_str());
+        auto notes = nameEngine.voice (slot, centre, {}, false).all();
+        std::sort (notes.begin(), notes.end());
+        c.notes = notes;
+        c.velocity = 96;
+        c.start = t;
+        t += i < beats.size() ? beats[i] : 4.0;
+        c.end = t;
+        c.inputNote = 60 + slot;
+        chords.push_back (std::move (c));
+    }
+
+    recording.store (false);
+    {
+        const juce::ScopedLock sl (takeLock);
+        take = std::move (chords);
+        takeBpm = hostBpm.load();
+        takeStartSeconds = -1.0;
+    }
+    takeVersion.fetch_add (1);
+}
+
+static void repeatToFill (const std::vector<int>& steps, double beatsEach, double minBeats,
+                          std::vector<int>& outSlots, std::vector<double>& outBeats)
+{
+    if (steps.empty()) return;
+    double total = 0.0;
+    do
+    {
+        for (int s : steps) { outSlots.push_back (s); outBeats.push_back (beatsEach); total += beatsEach; }
+    } while (total < minBeats - 0.001);
+}
+
+void NoviChordsProcessor::recipeToMidi (int recipe)
+{
+    if (recipe < 0 || recipe >= (int) recipes().size()) return;
+    loadRecipe (recipe);
+    std::vector<int> slots; std::vector<double> beats;
+    repeatToFill (recipeLayout (recipe, -1).stepsA, recipes()[(size_t) recipe].beats, 16.0, slots, beats);
+    setTakeFromSteps (slots, beats);
+}
+
+juce::String NoviChordsProcessor::writeSection (RecipeFamily family)
+{
+    const auto& list = recipes();
+    std::vector<int> verses, bridges;
+    for (int i = 0; i < (int) list.size(); ++i)
+    {
+        if (list[(size_t) i].family != family) continue;
+        if (list[(size_t) i].verse)  verses.push_back (i);
+        if (list[(size_t) i].bridge) bridges.push_back (i);
+    }
+    if (verses.empty() || bridges.empty()) return {};
+
+    int v = -1, b = -1;
+    for (int attempt = 0; attempt < 40; ++attempt)
+    {
+        v = verses[(size_t) sectionRng.nextInt ((int) verses.size())];
+        b = bridges[(size_t) sectionRng.nextInt ((int) bridges.size())];
+        const bool fresh = (v != lastVerse || verses.size() == 1) && (b != lastBridge || bridges.size() == 1);
+        if (fresh && recipeLayout (v, b).unique.size() <= 12) break;
+    }
+    lastVerse = v; lastBridge = b;
+    loadRecipe (v, b);
+
+    const auto lay = recipeLayout (v, b);
+    const auto& rv = list[(size_t) v];
+    const auto& rb = list[(size_t) b];
+    // Verses stay, bridges travel: 8 bars of verse, 4 bars of bridge, 4 bars of verse.
+    const double vBeats = juce::jmin (rv.beats, 8.0), bBeats = juce::jmin (rb.beats, 4.0);
+    std::vector<int> slots; std::vector<double> beats;
+    repeatToFill (lay.stepsA, vBeats, 32.0, slots, beats);
+    repeatToFill (lay.stepsB, bBeats, 16.0, slots, beats);
+    repeatToFill (lay.stepsA, vBeats, 16.0, slots, beats);
+
+    setTakeFromSteps (slots, beats);
+    playSteps (1000, slots, beats, false);
+
+    double total = 0.0; for (double x : beats) total += x;
+    lastSection = juce::String::fromUTF8 (rv.name.c_str()) + juce::String::fromUTF8 (" → ") + juce::String::fromUTF8 (rb.name.c_str())
+                + juce::String::fromUTF8 (" → verse · ") + juce::String (juce::roundToInt (total / 4.0)) + " bars";
+    return lastSection;
 }
 
 void NoviChordsProcessor::stopProgression()
@@ -173,7 +297,7 @@ void NoviChordsProcessor::runSequencer (juce::MidiBuffer& out, int numSamples)
         seqNote = 60 + seqSlots[(size_t) seqIndex];     // home octave, so the Octave control applies
         noteOn (seqNote, 100, 1, seqNext, out, pos);
         seqStep.store (seqIndex);
-        seqNext += (juce::int64) std::llround (seqBeats * 60.0 / hostBpm.load() * sr);
+        seqNext += (juce::int64) std::llround (seqBeats[(size_t) seqIndex] * 60.0 / hostBpm.load() * sr);
     }
 }
 
@@ -565,6 +689,9 @@ void NoviChordsProcessor::getStateInformation (juce::MemoryBlock& dest)
     state.setProperty ("mapView", mapView, nullptr);
     state.setProperty ("sigLength", sigLengthIndex, nullptr);
     state.setProperty ("sigLoop", sigLoop, nullptr);
+    state.setProperty ("sigSource", sigSource, nullptr);
+    state.setProperty ("recipeA", activeRecipeA.load(), nullptr);
+    state.setProperty ("recipeB", activeRecipeB.load(), nullptr);
     if (auto xml = state.createXml())
         copyXmlToBinary (*xml, dest);
 }
@@ -579,6 +706,9 @@ void NoviChordsProcessor::setStateInformation (const void* data, int size)
             mapView = juce::jlimit (0, 2, (int) tree.getProperty ("mapView", 0));
             sigLengthIndex = juce::jlimit (0, 2, (int) tree.getProperty ("sigLength", 1));
             sigLoop = (bool) tree.getProperty ("sigLoop", false);
+            sigSource = juce::jlimit (0, 2, (int) tree.getProperty ("sigSource", 0));
+            activeRecipeA.store (juce::jlimit (-1, (int) neo::recipes().size() - 1, (int) tree.getProperty ("recipeA", -1)));
+            activeRecipeB.store (juce::jlimit (-1, (int) neo::recipes().size() - 1, (int) tree.getProperty ("recipeB", -1)));
             apvts.replaceState (tree);
         }
 }

@@ -23,6 +23,7 @@ enum class Quality
     Dom7, Dom9, Dom13, Dom7s9, Dom7b9, Dom13b9,
     Dom7sus4, Dom9sus4, Dom13sus,
     HalfDim7, HalfDim9, Dim7, AugMaj7,
+    Dom11, Min6, Maj7Six9,
     Count
 };
 
@@ -38,7 +39,7 @@ const QualityInfo& info (Quality q);
 enum class Scale { Ionian, Dorian, Phrygian, Lydian, Mixolydian, Aeolian, Locrian, HarmonicMinor, MelodicMinor, Count };
 enum class Style { Gospel, Soul, NeoSoul, Count };
 enum class Complexity { Triads, Sevenths, Ninths, Lush, Count };
-enum class Voicing { Spread, RootlessBass, Close, Drop2, Count };
+enum class Voicing { Spread, RootlessBass, Close, Drop2, ExtensionOnTop, Count };
 
 const char* scaleName (Scale);
 const char* styleName (Style);
@@ -52,6 +53,7 @@ struct Chord
     Quality quality = Quality::Maj;
     int bass = -1;                // slash-bass pitch class relative to key, -1 = none
     bool diatonic = true;
+    int voicing = -1;             // per-chord voicing override (recipes), -1 = use the global setting
 };
 
 struct Settings
@@ -61,11 +63,14 @@ struct Settings
     Style style = Style::NeoSoul;
     Complexity complexity = Complexity::Lush;
     Voicing voicing = Voicing::Spread;
+    int recipeA = -1;             // recipe loaded onto the keys (-1 = none)
+    int recipeB = -1;             // optional second recipe (e.g. a bridge) after recipe A
 
     bool operator== (const Settings& o) const
     {
         return key == o.key && scale == o.scale && style == o.style
-            && complexity == o.complexity && voicing == o.voicing;
+            && complexity == o.complexity && voicing == o.voicing
+            && recipeA == o.recipeA && recipeB == o.recipeB;
     }
     bool operator!= (const Settings& o) const { return ! (*this == o); }
 };
@@ -91,6 +96,37 @@ struct StyleInfo
 };
 
 const StyleInfo& styleInfo (Style);
+
+// Producer recipes (from the Neptunes + Sade field guide). Roots are semitones above the tonic,
+// so every recipe plays in whatever key NoviChords is set to.
+struct RecipeChord { int root = 0; Quality q = Quality::Min9; int bass = -1; };
+
+enum class RecipeFamily { Neptunes, Sade };
+
+struct Recipe
+{
+    RecipeFamily family;
+    std::string name;
+    std::string sub;              // pattern tag and reference records
+    int origKey;                  // pitch class of the record's tonic (for display)
+    int bpm;                      // suggested tempo
+    double beats;                 // default beats per chord
+    bool verse, bridge;           // roles for the section writer
+    std::vector<RecipeChord> steps;
+};
+
+const std::vector<Recipe>& recipes();
+
+// Which keyboard slots recipe chords occupy, in order: white keys first, then black keys.
+inline constexpr int kRecipeSlotOrder[12] = { 0, 2, 4, 5, 7, 9, 11, 1, 3, 6, 8, 10 };
+
+struct RecipeLayout
+{
+    std::vector<Chord> unique;    // distinct chords, in slot order
+    std::vector<int> stepsA;      // recipe A as keyboard slots
+    std::vector<int> stepsB;      // recipe B as keyboard slots
+};
+RecipeLayout recipeLayout (int recipeA, int recipeB);
 
 struct Suggestion
 {

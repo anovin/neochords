@@ -94,7 +94,22 @@ public:
     // Progression player (message thread starts/stops, audio thread plays in time)
     void playProgression (int rowId, const std::vector<int>& slots, double beatsPerChord, bool loop);
     void stopProgression();
+    void playSteps (int rowId, const std::vector<int>& slots, const std::vector<double>& beats, bool loop);
     std::atomic<int> seqRow { -1 };   // which signature move is playing (-1 = none)
+
+    // Producer recipes ---------------------------------------------------------
+    std::atomic<int> activeRecipeA { -1 }, activeRecipeB { -1 };
+    int sigSource = 0;                // Signature Moves tab: 0 = style, 1 = Neptunes, 2 = Sade
+    void loadRecipe (int recipe, int second = -1);
+    void clearRecipe();
+    // Puts a recipe straight into the recorder as MIDI (no playing in needed).
+    void recipeToMidi (int recipe);
+    // Builds a verse / bridge / verse section from one family, loads it onto the keys,
+    // writes it to the recorder and starts playing it. Returns a description.
+    juce::String writeSection (neo::RecipeFamily family);
+    juce::String lastSection;
+    // Steps (keyboard slots) of the loaded recipe(s): A then B
+    std::vector<int> recipeStepsA() const, recipeStepsB() const;
     std::atomic<int> seqStep { -1 };  // which chord of it is sounding
 
 private:
@@ -150,15 +165,18 @@ private:
 
     // progression player
     juce::SpinLock seqLock;
-    std::array<int, 8> seqReqSlots {};
+    std::array<int, 64> seqReqSlots {};
+    std::array<double, 64> seqReqBeats {};
     int seqReqCount = 0;
-    double seqReqBeats = 4.0;
     bool seqReqLoop = false;
     std::atomic<bool> seqStartReq { false }, seqStopReq { false };
     bool seqActive = false, seqLoopNow = false;
-    std::array<int, 8> seqSlots {};
+    std::array<int, 64> seqSlots {};
+    std::array<double, 64> seqBeats {};
     int seqCount = 0, seqIndex = -1, seqNote = -1;
-    double seqBeats = 4.0;
+    void setTakeFromSteps (const std::vector<int>& slots, const std::vector<double>& beats);
+    juce::Random sectionRng;
+    int lastVerse = -1, lastBridge = -1;
     juce::int64 seqNext = 0;
     void runSequencer (juce::MidiBuffer& out, int numSamples);
 

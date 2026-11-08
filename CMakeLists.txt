@@ -44,6 +44,7 @@ juce_add_plugin(NoviChords
 
 target_sources(NoviChords PRIVATE
     Source/ChordEngine.cpp
+    Source/Recipes.cpp
     Source/PluginProcessor.cpp
     Source/PluginEditor.cpp)
 
@@ -66,4 +67,4 @@ target_link_libraries(NoviChords
         juce::juce_recommended_warning_flags)
 
 # Engine unit test (no JUCE needed): cmake --build . --target EngineTest && ./EngineTest
-add_executable(EngineTest Tests/EngineTest.cpp Source/ChordEngine.cpp)
+add_executable(EngineTest Tests/EngineTest.cpp Source/ChordEngine.cpp Source/Recipes.cpp)

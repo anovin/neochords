@@ -32,6 +32,15 @@ The style also changes the diatonic chords. For example, Gospel's tonic is a 6/9
 
 **Try Next** ranks five follow-up chords and says why each fits.
 
+**Producer Recipes (Neptunes / Sade tabs)**: the patterns and loops from the Neptunes + Sade chord field guide, ready to play. The 8 Neptunes patterns, 6 Sade patterns and their original loops are all written relative to the tonic, so they play in whatever key NoviChords is set to.
+- **▶** loads the recipe onto your keys (its chords sit on C, D, E… in order) and plays it at the project tempo. **⟳ Loop** repeats it.
+- **⇩ MIDI** writes the recipe straight into the Chord Recorder (at least 4 bars), ready to drag into FL Studio. No playing in is needed.
+- **✦ Write me a section** follows the guide's rule that verses stay and bridges travel. It builds an 8-bar verse vamp, a 4-bar bridge lift and a 4-bar verse return, puts all of it on your keys and in the recorder, and plays it. Press it again for a new combination.
+- Neptunes recipes use the **Extension on top** voicing: the root alone in the left hand, colour in the right hand, and the 9th, 11th or 13th as the top note, doubled when the chord is thin. The p. 11 recipes come out exactly as written, for example Dsus7(9) as D | E–G–C–E. Sade recipes use open major-7th spreads.
+- Slash chords, pedal bass and walking bass are supported (for example Dm7/C, F/G and Dm9 → Dm9/C♯).
+- **✕ Clear** returns the keys to your key and style. Playing a Style move also clears it.
+- **Extension on top** is also available as a global Voicing option.
+
 **Signature Moves**: each of the style's signature progressions can be played, not just read.
 - Press **▶** (or click the progression's name) to play it through your instrument at the project tempo. Press **■** to stop.
 - Choose how long each chord lasts: **½ bar**, **1 bar** or **2 bars**. Turn on **⟳ Loop** to keep it going.

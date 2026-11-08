@@ -15,6 +15,7 @@ public:
     void mouseDrag (const juce::MouseEvent&) override;
     void mouseUp (const juce::MouseEvent&) override;
     void mouseMove (const juce::MouseEvent&) override;
+    void mouseWheelMove (const juce::MouseEvent&, const juce::MouseWheelDetails&) override;
 
 private:
     void timerCallback() override;
@@ -30,13 +31,16 @@ private:
     void paintNowPlaying (juce::Graphics&, juce::Rectangle<float>);
     void paintSuggestions (juce::Graphics&, juce::Rectangle<float>);
     void paintStyle (juce::Graphics&, juce::Rectangle<float>);
+    void paintRecipes (juce::Graphics&, juce::Rectangle<float>, neo::RecipeFamily);
     void paintMapPanel (juce::Graphics&, juce::Rectangle<float>);
     void paintCircle (juce::Graphics&, juce::Rectangle<float>);
     void paintGrid (juce::Graphics&, juce::Rectangle<float>);
     void paintFlow (juce::Graphics&, juce::Rectangle<float>);
     int hitTestMap (juce::Point<float>) const;   // grid / flow: slot under the mouse, or -1
     void drawMiniKeys (juce::Graphics&, juce::Rectangle<float>, const std::vector<int>& notes);
-    struct SigHit { juce::Rectangle<float> r; int type = 0; int index = 0; };  // 0 play, 1 chord chip, 2 length, 3 loop
+    // 0 play style move, 1 chord chip, 2 length, 3 loop, 4 source tab, 5 play recipe,
+    // 6 recipe to MIDI, 7 clear recipe, 8 recipe chord chip (index = recipe * 64 + slot), 9 write section
+    struct SigHit { juce::Rectangle<float> r; int type = 0; int index = 0; };
     void paintRecorder (juce::Graphics&, juce::Rectangle<float>);
 
     void updateRecorderButtons();
@@ -89,6 +93,9 @@ private:
     int hoverMapSlot = -1;
     std::vector<SigHit> sigHits;
     int shownSeqRow = -2, shownSeqStep = -2;
+    std::array<float, 3> recipeScroll {};
+    float recipeScrollMax = 0.0f;
+    juce::Rectangle<float> recipeListArea;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (NoviChordsEditor)
 };

@@ -41,6 +41,9 @@ const QualityInfo& info (Quality q)
         { "m9♭5",      { 0, 3, 6, 10, 14 },         Family::HalfDim },   // HalfDim9
         { "°7",        { 0, 3, 6, 9 },              Family::Dim },       // Dim7
         { "maj7♯5",    { 0, 4, 8, 11 },             Family::AugMaj },    // AugMaj7
+        { "11",        { 0, 7, 10, 14, 17 },        Family::Sus },       // Dom11 (no 3rd: the Neptunes "11")
+        { "m6",        { 0, 3, 7, 9 },              Family::Minor },     // Min6
+        { "maj7(6/9)", { 0, 4, 7, 9, 11, 14 },      Family::Major },     // Maj7Six9
     };
     return table[(size_t) q];
 }
@@ -71,7 +74,7 @@ const char* complexityName (Complexity c)
 
 const char* voicingName (Voicing v)
 {
-    static const char* n[] = { "Spread (LH + RH)", "Rootless + bass", "Close", "Drop 2" };
+    static const char* n[] = { "Spread (LH + RH)", "Rootless + bass", "Close", "Drop 2", "Extension on top" };
     return n[(int) v];
 }
 
@@ -303,7 +306,15 @@ void ChordEngine::update (const Settings& settings)
     // Spell with sharps for sharp keys (judged from the relative major for minor modes).
     // Find the parent major key so notes are spelled the way the key signature would.
     static const int toParentMajor[] = { 0, 10, 8, 7, 5, 3, 1, 3, 3 };   // Ionian .. Locrian, HarmMin, MelMin
-    const int relMajor = (s.key + toParentMajor[(int) s.scale]) % 12;
+    int relMajor = (s.key + toParentMajor[(int) s.scale]) % 12;
+    if (s.recipeA >= 0 && s.recipeA < (int) recipes().size())
+    {
+        // Spell a recipe by its own tonic chord: minor-centred recipes read like a minor key.
+        bool minorTonic = false;
+        for (auto& rc : recipes()[(size_t) s.recipeA].steps)
+            if (rc.root == 0 && rc.bass < 0) { const auto f = info (rc.q).family; minorTonic = f == Family::Minor || f == Family::HalfDim; break; }
+        relMajor = (s.key + (minorTonic ? 3 : 0)) % 12;
+    }
     useSharps = relMajor == 7 || relMajor == 2 || relMajor == 9 || relMajor == 4 || relMajor == 11;
 
     for (int d = 0; d < 7; ++d)
@@ -315,6 +326,14 @@ void ChordEngine::update (const Settings& settings)
         Chord c = set.colour[(size_t) i];
         c.quality = reduce (c.quality, s.complexity);
         chords[(size_t) kBlackSlots[i]] = c;
+    }
+
+    // A producer recipe takes over keys, starting from C (white keys first).
+    if (s.recipeA >= 0)
+    {
+        const auto lay = recipeLayout (s.recipeA, s.recipeB);
+        for (size_t i = 0; i < lay.unique.size() && i < 12; ++i)
+            chords[(size_t) kRecipeSlotOrder[i]] = lay.unique[i];
     }
 }
 
@@ -357,7 +376,7 @@ std::string ChordEngine::roman (int slot) const
         case Family::HalfDim:  r += "ø"; break;
         case Family::AugMaj:   r += "+"; break;
         case Family::Dominant: r += c.quality == Quality::Maj ? "" : "7"; break;
-        case Family::Sus:      r += "sus"; break;
+        case Family::Sus:      r += c.quality == Quality::Dom11 ? "11" : "sus"; break;
         default: break;
     }
 
@@ -448,8 +467,56 @@ Voiced ChordEngine::voice (int slot, int centre, const std::vector<int>& previou
     Voiced v;
     std::vector<int> upperPcs;
     const int bassLow = centre - 26;
+    const Voicing vmode = c.voicing >= 0 ? (Voicing) c.voicing : s.voicing;
 
-    switch (s.voicing)
+    if (vmode == Voicing::ExtensionOnTop)
+    {
+        // Chad Hugo's split-hand shape: bass alone in the left hand; the right hand holds the colour
+        // with the highest extension (9th / 13th / 11th, else 7th) as the top note, doubled when thin.
+        v.bass.push_back (placeInRange (bassPc, bassLow));
+
+        int topRaw = -1;
+        auto has = [&] (int raw) { return std::find (ivs.begin(), ivs.end(), raw) != ivs.end(); };
+        const int prefs[] = { c.quality == Quality::Dom11 ? 17 : 14, 14, 21, 17, 18, 13, 15, 11, 10, 9, 7, 4, 3 };
+        for (int p : prefs) if (has (p)) { topRaw = p; break; }
+        const int topPc = (rootPc + (topRaw >= 0 ? topRaw : 0)) % 12;
+
+        std::vector<int> others;   // remaining colour tones (pitch classes)
+        const bool keepRoot = c.bass >= 0;   // slash chord: the chord's own root goes in the right hand
+        int countNonRoot = 0;
+        for (auto& t : tones) if (t.first != 0) ++countNonRoot;
+        for (auto& t : tones)
+        {
+            const int pc = (rootPc + t.first) % 12;
+            if (pc == topPc) continue;
+            if (t.first == 0 && ! keepRoot) continue;
+            if (t.first == 7 && countNonRoot >= 4) continue;   // drop the 5th in big chords
+            others.push_back (pc);
+        }
+
+        const int top = placeInRange (topPc, centre + 3);
+        std::vector<int> rh { top };
+        // stack the other tones downward inside the octave below the top note
+        std::vector<int> placed;
+        for (int pc : others)
+        {
+            int n = top - 1;
+            while (((n % 12) + 12) % 12 != pc) --n;
+            placed.push_back (n);
+        }
+        std::sort (placed.begin(), placed.end());
+        for (int n : placed) rh.push_back (n);
+        if (rh.size() <= 3 && top - 12 > v.bass.front() + 4)
+            rh.push_back (top - 12);                      // double the top extension
+        std::sort (rh.begin(), rh.end());
+        rh.erase (std::unique (rh.begin(), rh.end()), rh.end());
+        v.upper = rh;
+        for (auto* list : { &v.bass, &v.upper })
+            for (auto& x : *list) x = std::clamp (x, 0, 127);
+        return v;
+    }
+
+    switch (vmode)
     {
         case Voicing::Spread:
         {
@@ -481,7 +548,7 @@ Voiced ChordEngine::voice (int slot, int centre, const std::vector<int>& previou
             v.bass.push_back (placeInRange (bassPc, bassLow));
             const bool dropFifth = tones.size() >= 5;
             for (auto& t : tones)
-                if (t.first != 0 && ! (dropFifth && t.first == 7))
+                if ((t.first != 0 || c.bass >= 0) && ! (dropFifth && t.first == 7))
                     upperPcs.push_back ((rootPc + t.first) % 12);
             if (upperPcs.size() < 3)
                 upperPcs.push_back (rootPc);
@@ -508,21 +575,21 @@ Voiced ChordEngine::voice (int slot, int centre, const std::vector<int>& previou
             if (voiceLead && ! previousUpper.empty())
                 cost = motionCost (notes, previousUpper) + 0.4 * std::abs (mean - centre);
             else
-                cost = std::abs (mean - (centre + 2)) + (s.voicing == Voicing::Close && rot != 0 ? 2.0 : 0.0);
+                cost = std::abs (mean - (centre + 2)) + (vmode == Voicing::Close && rot != 0 ? 2.0 : 0.0);
             if (notes.front() < centre - 14 || notes.back() > centre + 19)
                 cost += 50;
             if (cost < bestCost) { bestCost = cost; best = notes; }
         }
     }
 
-    if (s.voicing == Voicing::Drop2 && best.size() >= 4)
+    if (vmode == Voicing::Drop2 && best.size() >= 4)
     {
         best[best.size() - 2] -= 12;
         std::sort (best.begin(), best.end());
     }
 
     // Close / drop-2 slash chords still need their bass note.
-    if ((s.voicing == Voicing::Close || s.voicing == Voicing::Drop2) && c.bass >= 0)
+    if ((vmode == Voicing::Close || vmode == Voicing::Drop2) && c.bass >= 0)
         v.bass.push_back (placeInRange (bassPc, best.front() - 12));
 
     v.upper = best;
