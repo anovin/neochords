@@ -35,6 +35,8 @@ private:
     void paintGrid (juce::Graphics&, juce::Rectangle<float>);
     void paintFlow (juce::Graphics&, juce::Rectangle<float>);
     int hitTestMap (juce::Point<float>) const;   // grid / flow: slot under the mouse, or -1
+    void drawMiniKeys (juce::Graphics&, juce::Rectangle<float>, const std::vector<int>& notes);
+    struct SigHit { juce::Rectangle<float> r; int type = 0; int index = 0; };  // 0 play, 1 chord chip, 2 length, 3 loop
     void paintRecorder (juce::Graphics&, juce::Rectangle<float>);
 
     void updateRecorderButtons();
@@ -85,6 +87,8 @@ private:
     juce::Rectangle<float> mapContent;
     std::vector<std::pair<juce::Path, int>> mapHits;
     int hoverMapSlot = -1;
+    std::vector<SigHit> sigHits;
+    int shownSeqRow = -2, shownSeqStep = -2;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (NoviChordsEditor)
 };

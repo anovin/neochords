@@ -88,6 +88,14 @@ public:
     juce::File writeTakeToTempMidi (int quantizeIndex) const;
     int quantizeIndex = 2;            // editor setting, kept with the plugin state
     int mapView = 0;                  // harmony map: 0 = circle, 1 = grid, 2 = flow
+    int sigLengthIndex = 1;           // signature-move playback: 0 = half bar, 1 = 1 bar, 2 = 2 bars
+    bool sigLoop = false;
+
+    // Progression player (message thread starts/stops, audio thread plays in time)
+    void playProgression (int rowId, const std::vector<int>& slots, double beatsPerChord, bool loop);
+    void stopProgression();
+    std::atomic<int> seqRow { -1 };   // which signature move is playing (-1 = none)
+    std::atomic<int> seqStep { -1 };  // which chord of it is sounding
 
 private:
     static juce::AudioProcessorValueTreeState::ParameterLayout createLayout();
@@ -139,6 +147,20 @@ private:
     std::array<int, 64> auditionBuf {};
     juce::SpinLock auditionWriteLock;
     std::array<bool, 12> auditionHeld {};
+
+    // progression player
+    juce::SpinLock seqLock;
+    std::array<int, 8> seqReqSlots {};
+    int seqReqCount = 0;
+    double seqReqBeats = 4.0;
+    bool seqReqLoop = false;
+    std::atomic<bool> seqStartReq { false }, seqStopReq { false };
+    bool seqActive = false, seqLoopNow = false;
+    std::array<int, 8> seqSlots {};
+    int seqCount = 0, seqIndex = -1, seqNote = -1;
+    double seqBeats = 4.0;
+    juce::int64 seqNext = 0;
+    void runSequencer (juce::MidiBuffer& out, int numSamples);
 
     // recorder
     std::atomic<bool> recording { false };

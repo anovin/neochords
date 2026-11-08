@@ -235,6 +235,13 @@ void NoviChordsEditor::timerCallback()
         dirty = true;
     }
 
+    if (proc.seqRow.load() != shownSeqRow || proc.seqStep.load() != shownSeqStep)
+    {
+        shownSeqRow = proc.seqRow.load();
+        shownSeqStep = proc.seqStep.load();
+        dirty = true;
+    }
+
     if (dirty)
         repaint();
     else if (proc.isRecording())
@@ -263,8 +270,8 @@ void NoviChordsEditor::resized()
 
     const float py = 372.0f, ph = (float) H - py - 20.0f;
     nowArea   = { 24.0f, py, 200.0f, ph };
-    nextArea  = { 236.0f, py, 330.0f, ph };
-    styleArea = { 578.0f, py, keyboardArea.getRight() - 578.0f, ph };
+    nextArea  = { 236.0f, py, 296.0f, ph };
+    styleArea = { 544.0f, py, keyboardArea.getRight() - 544.0f, ph };
 
     circleArea = { rightX, 128.0f, 300.0f, 342.0f };
     recArea    = { rightX, 482.0f, 300.0f, (float) H - 482.0f - 20.0f };
@@ -373,6 +380,7 @@ void NoviChordsEditor::mouseMove (const juce::MouseEvent& e)
     const int hm = hitTestMap (e.position);
     bool overTab = false;
     for (auto& t : viewTabs) overTab |= t.contains (e.position);
+    for (auto& sh : sigHits) overTab |= sh.r.contains (e.position);
     if (hm != hoverMapSlot)
     {
         hoverMapSlot = hm;
@@ -406,6 +414,33 @@ void NoviChordsEditor::mouseDown (const juce::MouseEvent& e)
             repaint (circleArea.toNearestInt());
             return;
         }
+
+    for (const auto& sh : sigHits)
+    {
+        if (! sh.r.contains (e.position))
+            continue;
+        if (sh.type == 0)
+        {
+            if (proc.seqRow.load() == sh.index)
+                proc.stopProgression();
+            else
+            {
+                static const double beats[] = { 2.0, 4.0, 8.0 };
+                const auto& progs = engine.styleSet().progressions;
+                if (sh.index < (int) progs.size())
+                    proc.playProgression (sh.index, progs[(size_t) sh.index].keys, beats[juce::jlimit (0, 2, proc.sigLengthIndex)], proc.sigLoop);
+            }
+        }
+        else if (sh.type == 1)
+        {
+            pressedSlot = sh.index;
+            proc.auditionSlot (sh.index, true);
+        }
+        else if (sh.type == 2) proc.sigLengthIndex = sh.index;
+        else if (sh.type == 3) proc.sigLoop = ! proc.sigLoop;
+        repaint (styleArea.toNearestInt());
+        return;
+    }
 
     if (const int mapSlot = hitTestMap (e.position); mapSlot >= 0)
     {
@@ -594,12 +629,18 @@ void NoviChordsEditor::paintNowPlaying (juce::Graphics& g, juce::Rectangle<float
     g.drawText ("NOTES SENT", a.removeFromTop (16.0f), juce::Justification::centredLeft);
 
     juce::StringArray notes;
+    std::vector<int> noteNums;
     const int n = proc.lastNoteCount.load();
     for (int i = 0; i < n; ++i)
-        notes.add (noteWithOctave (proc.lastNotes[(size_t) i].load()));
+    {
+        noteNums.push_back (proc.lastNotes[(size_t) i].load());
+        notes.add (noteWithOctave (noteNums.back()));
+    }
     g.setColour (cream);
-    g.setFont (font (14.0f));
-    g.drawFittedText (notes.joinIntoString ("  "), a.removeFromTop (60.0f).toNearestInt(), juce::Justification::topLeft, 3);
+    g.setFont (font (13.0f));
+    g.drawFittedText (notes.joinIntoString ("  "), a.removeFromTop (36.0f).toNearestInt(), juce::Justification::topLeft, 2);
+    a.removeFromTop (4.0f);
+    drawMiniKeys (g, a.removeFromTop (54.0f), noteNums);
 
     g.setColour (muted);
     g.setFont (font (12.0f));
@@ -653,42 +694,150 @@ void NoviChordsEditor::paintSuggestions (juce::Graphics& g, juce::Rectangle<floa
     }
 }
 
+void NoviChordsEditor::drawMiniKeys (juce::Graphics& g, juce::Rectangle<float> r, const std::vector<int>& notes)
+{
+    if (notes.empty()) return;
+    const int lo = (*std::min_element (notes.begin(), notes.end()) / 12) * 12;
+    int hi = (*std::max_element (notes.begin(), notes.end()) / 12) * 12 + 11;
+    hi = juce::jmax (hi, lo + 23);
+    auto isBlack = [] (int n) { const int pc = n % 12; return pc == 1 || pc == 3 || pc == 6 || pc == 8 || pc == 10; };
+    auto on = [&] (int n) { return std::find (notes.begin(), notes.end(), n) != notes.end(); };
+
+    int whites = 0;
+    for (int n = lo; n <= hi; ++n) whites += isBlack (n) ? 0 : 1;
+    const float kw = r.getWidth() / (float) whites;
+
+    std::vector<std::pair<int, float>> blacks;
+    float x = r.getX();
+    for (int n = lo; n <= hi; ++n)
+    {
+        if (isBlack (n)) { blacks.push_back ({ n, x }); continue; }
+        auto k = juce::Rectangle<float> (x, r.getY(), kw, r.getHeight()).reduced (0.5f, 0.0f);
+        g.setColour (on (n) ? gold : ivory);
+        g.fillRoundedRectangle (k, 2.0f);
+        if (n % 12 == 0)
+        {
+            g.setColour (navy.withAlpha (0.55f));
+            g.setFont (font (7.5f));
+            g.drawText ("C" + juce::String (n / 12 - 1), k.withTop (k.getBottom() - 10.0f), juce::Justification::centred);
+        }
+        x += kw;
+    }
+    for (auto [n, bx] : blacks)
+    {
+        auto k = juce::Rectangle<float> (bx - kw * 0.32f, r.getY(), kw * 0.64f, r.getHeight() * 0.6f);
+        g.setColour (on (n) ? gold : navy);
+        g.fillRoundedRectangle (k, 1.5f);
+    }
+}
+
 void NoviChordsEditor::paintStyle (juce::Graphics& g, juce::Rectangle<float> r)
 {
     const auto& si = styleInfo (shownSettings.style);
     const auto& set = engine.styleSet();
-    drawPanel (g, r, u8 ("SIGNATURE MOVES  ·  ") + u (si.name).toUpperCase() + (engine.minorMode() ? " (MINOR)" : " (MAJOR)"));
-    auto a = r.reduced (16.0f, 12.0f).withTrimmedTop (22.0f);
+    drawPanel (g, r, u8 ("SIGNATURE MOVES  ·  ") + u (si.name).toUpperCase() + (engine.minorMode() ? u8 (" · MINOR") : u8 (" · MAJOR")));
+    sigHits.clear();
+    auto a = r.reduced (14.0f, 12.0f).withTrimmedTop (22.0f);
 
-    g.setColour (cream.withAlpha (0.85f));
-    g.setFont (font (12.0f));
-    g.drawFittedText (u (si.blurb), a.removeFromTop (62.0f).toNearestInt(), juce::Justification::topLeft, 4, 0.9f);
-    g.setColour (gold);
-    g.setFont (font (11.5f));
-    g.drawFittedText (u (set.tip), a.removeFromTop (30.0f).toNearestInt(), juce::Justification::topLeft, 2, 0.9f);
+    g.setColour (cream.withAlpha (0.8f));
+    g.setFont (font (11.0f));
+    g.drawFittedText (u (si.blurb), a.removeFromTop (30.0f).toNearestInt(), juce::Justification::topLeft, 2, 0.8f);
+    a.removeFromTop (4.0f);
+
+    // playback controls: chord length + loop
+    {
+        auto row = a.removeFromTop (22.0f);
+        g.setColour (muted);
+        g.setFont (font (10.0f, true));
+        g.drawText ("EACH CHORD", row.removeFromLeft (70.0f), juce::Justification::centredLeft);
+        static const char* lens[] = { u8"½ bar", "1 bar", "2 bars" };
+        for (int i = 0; i < 3; ++i)
+        {
+            auto pill = row.removeFromLeft (50.0f).reduced (2.0f, 1.0f);
+            const bool sel = proc.sigLengthIndex == i;
+            g.setColour (sel ? gold : panelEdge.withAlpha (0.6f));
+            g.fillRoundedRectangle (pill, 9.0f);
+            g.setColour (sel ? bg : cream);
+            g.setFont (font (10.5f, sel));
+            g.drawText (juce::String::fromUTF8 (lens[i]), pill, juce::Justification::centred);
+            sigHits.push_back ({ pill, 2, i });
+        }
+        auto loop = row.removeFromRight (56.0f).reduced (2.0f, 1.0f);
+        g.setColour (proc.sigLoop ? rose : panelEdge.withAlpha (0.6f));
+        g.fillRoundedRectangle (loop, 9.0f);
+        g.setColour (proc.sigLoop ? bg : cream);
+        g.setFont (font (10.5f, proc.sigLoop));
+        g.drawText (u8 ("⟳ Loop"), loop, juce::Justification::centred);
+        sigHits.push_back ({ loop, 3, 0 });
+    }
     a.removeFromTop (6.0f);
 
+    const int playingRow = proc.seqRow.load();
+    const int playingStep = proc.seqStep.load();
     const float rowH = a.getHeight() / (float) juce::jmax<size_t> (1, set.progressions.size());
-    for (auto& p : set.progressions)
+
+    for (size_t pi = 0; pi < set.progressions.size(); ++pi)
     {
-        auto row = a.removeFromTop (rowH);
-        juce::StringArray chordsTxt, keysTxt;
-        for (int k : p.keys)
+        const auto& p = set.progressions[pi];
+        auto row = a.removeFromTop (rowH).reduced (0.0f, 2.0f);
+        const bool playing = playingRow == (int) pi;
+
+        g.setColour (playing ? gold.withAlpha (0.10f) : juce::Colours::white.withAlpha (0.025f));
+        g.fillRoundedRectangle (row, 7.0f);
+        row = row.reduced (6.0f, 3.0f);
+
+        // play / stop button + name
+        auto head = row.removeFromTop (20.0f);
+        auto btn = head.removeFromLeft (20.0f).withSizeKeepingCentre (20.0f, 20.0f);
+        g.setColour (playing ? gold : rose);
+        g.fillEllipse (btn);
+        g.setColour (bg);
+        if (playing)
+            g.fillRect (btn.withSizeKeepingCentre (7.0f, 7.0f));
+        else
         {
-            chordsTxt.add (u (engine.chordName (k)));
-            keysTxt.add (u (ChordEngine::keyLabel (k)));
+            juce::Path tri;
+            const auto c = btn.getCentre();
+            tri.addTriangle (c.x - 3.0f, c.y - 5.0f, c.x - 3.0f, c.y + 5.0f, c.x + 5.5f, c.y);
+            g.fillPath (tri);
         }
-        auto head = row.removeFromTop (17.0f);
+        sigHits.push_back ({ btn.expanded (3.0f), 0, (int) pi });
+
         g.setColour (cream);
         g.setFont (font (12.5f, true));
-        g.drawText (u (p.name), head, juce::Justification::centredLeft);
-        g.setColour (cream.withAlpha (0.75f));
-        g.setFont (font (12.0f));
-        g.drawFittedText (chordsTxt.joinIntoString (u8 (" → ")), row.removeFromTop (17.0f).toNearestInt(),
-                          juce::Justification::centredLeft, 1, 0.7f);
-        g.setColour (muted);
-        g.setFont (font (11.0f));
-        g.drawText ("keys " + keysTxt.joinIntoString (u8 (" – ")), row.removeFromTop (15.0f), juce::Justification::centredLeft);
+        g.drawText (u (p.name), head.withTrimmedLeft (8.0f), juce::Justification::centredLeft, true);
+        // the whole title line also toggles playback
+        sigHits.push_back ({ head, 0, (int) pi });
+
+        row.removeFromTop (3.0f);
+        auto chips = row.withHeight (juce::jmin (40.0f, row.getHeight()));
+        const int n = (int) p.keys.size();
+        const float gap = 4.0f;
+        const float cw = (chips.getWidth() - gap * (float) (n - 1)) / (float) juce::jmax (1, n);
+        for (int ci = 0; ci < n; ++ci)
+        {
+            const int slot = p.keys[(size_t) ci];
+            auto chip = juce::Rectangle<float> (chips.getX() + (float) ci * (cw + gap), chips.getY(), cw, chips.getHeight());
+            const bool lit = (playing && playingStep == ci) || (! playing && slot == pressedSlot);
+            const bool diat = engine.chord (slot).diatonic;
+            g.setColour (lit ? gold : (diat ? blue : navy.interpolatedWith (cyan, 0.12f)));
+            g.fillRoundedRectangle (chip, 6.0f);
+            if (! diat && ! lit)
+            {
+                g.setColour (rose);
+                g.drawRoundedRectangle (chip.reduced (0.5f), 6.0f, 1.2f);
+            }
+            auto t = chip.reduced (3.0f, 3.0f);
+            g.setColour (lit ? bg : cream);
+            g.setFont (font (11.5f, true));
+            g.drawFittedText (u (engine.chordName (slot)), t.removeFromTop (t.getHeight() * 0.56f).toNearestInt(),
+                              juce::Justification::centred, 1, 0.55f);
+            g.setColour (lit ? bg : (diat ? sand : rose));
+            g.setFont (font (9.0f, true));
+            g.drawFittedText (u (engine.roman (slot)) + u8 (" · ") + u (ChordEngine::keyLabel (slot)), t.toNearestInt(),
+                              juce::Justification::centred, 1, 0.6f);
+            sigHits.push_back ({ chip, 1, slot });
+        }
     }
 }
 

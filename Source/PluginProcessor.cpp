@@ -98,6 +98,83 @@ void NoviChordsProcessor::prepareToPlay (double sampleRate, int)
     for (auto& h : held) h = Held {};
     for (auto& ch : refCount) ch.fill (0);
     lastUpper.clear();
+    seqActive = false;
+    seqNote = -1;
+    seqRow.store (-1);
+    seqStep.store (-1);
+}
+
+//==============================================================================
+// Progression player
+void NoviChordsProcessor::playProgression (int rowId, const std::vector<int>& slots, double beatsPerChord, bool loop)
+{
+    {
+        const juce::SpinLock::ScopedLockType sl (seqLock);
+        seqReqCount = juce::jmin ((int) slots.size(), (int) seqReqSlots.size());
+        for (int i = 0; i < seqReqCount; ++i) seqReqSlots[(size_t) i] = ((slots[(size_t) i] % 12) + 12) % 12;
+        seqReqBeats = juce::jmax (0.5, beatsPerChord);
+        seqReqLoop = loop;
+    }
+    seqRow.store (rowId);
+    seqStep.store (-1);
+    seqStartReq.store (true);
+}
+
+void NoviChordsProcessor::stopProgression()
+{
+    seqStopReq.store (true);
+}
+
+void NoviChordsProcessor::runSequencer (juce::MidiBuffer& out, int numSamples)
+{
+    if (seqStopReq.exchange (false))
+    {
+        if (seqNote >= 0) noteOff (seqNote, out, 0, sampleClock);
+        seqNote = -1;
+        seqActive = false;
+        seqRow.store (-1);
+        seqStep.store (-1);
+    }
+
+    if (seqStartReq.exchange (false))
+    {
+        if (seqNote >= 0) noteOff (seqNote, out, 0, sampleClock);
+        seqNote = -1;
+        {
+            const juce::SpinLock::ScopedLockType sl (seqLock);
+            seqSlots = seqReqSlots;
+            seqCount = seqReqCount;
+            seqBeats = seqReqBeats;
+            seqLoopNow = seqReqLoop;
+        }
+        seqActive = seqCount > 0;
+        seqIndex = -1;
+        seqNext = sampleClock;
+    }
+
+    const juce::int64 blockEnd = sampleClock + numSamples;
+    while (seqActive && seqNext < blockEnd)
+    {
+        const int pos = (int) juce::jlimit<juce::int64> (0, numSamples - 1, seqNext - sampleClock);
+        if (seqNote >= 0) { noteOff (seqNote, out, pos, seqNext); seqNote = -1; }
+
+        if (++seqIndex >= seqCount)
+        {
+            if (seqLoopNow) seqIndex = 0;
+            else
+            {
+                seqActive = false;
+                seqRow.store (-1);
+                seqStep.store (-1);
+                break;
+            }
+        }
+
+        seqNote = 60 + seqSlots[(size_t) seqIndex];     // home octave, so the Octave control applies
+        noteOn (seqNote, 100, 1, seqNext, out, pos);
+        seqStep.store (seqIndex);
+        seqNext += (juce::int64) std::llround (seqBeats * 60.0 / hostBpm.load() * sr);
+    }
 }
 
 void NoviChordsProcessor::auditionSlot (int slot, bool on)
@@ -271,6 +348,8 @@ void NoviChordsProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::
         handle (scope.startIndex1, scope.blockSize1);
         handle (scope.startIndex2, scope.blockSize2);
     }
+
+    runSequencer (out, numSamples);
 
     for (const auto meta : midi)
     {
@@ -484,6 +563,8 @@ void NoviChordsProcessor::getStateInformation (juce::MemoryBlock& dest)
     auto state = apvts.copyState();
     state.setProperty ("quantize", quantizeIndex, nullptr);
     state.setProperty ("mapView", mapView, nullptr);
+    state.setProperty ("sigLength", sigLengthIndex, nullptr);
+    state.setProperty ("sigLoop", sigLoop, nullptr);
     if (auto xml = state.createXml())
         copyXmlToBinary (*xml, dest);
 }
@@ -496,6 +577,8 @@ void NoviChordsProcessor::setStateInformation (const void* data, int size)
             auto tree = juce::ValueTree::fromXml (*xml);
             quantizeIndex = (int) tree.getProperty ("quantize", 2);
             mapView = juce::jlimit (0, 2, (int) tree.getProperty ("mapView", 0));
+            sigLengthIndex = juce::jlimit (0, 2, (int) tree.getProperty ("sigLength", 1));
+            sigLoop = (bool) tree.getProperty ("sigLoop", false);
             apvts.replaceState (tree);
         }
 }

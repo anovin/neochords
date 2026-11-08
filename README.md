@@ -32,6 +32,14 @@ The style also changes the diatonic chords. For example, Gospel's tonic is a 6/9
 
 **Try Next** ranks five follow-up chords and says why each fits.
 
+**Signature Moves**: each of the style's signature progressions can be played, not just read.
+- Press **▶** (or click the progression's name) to play it through your instrument at the project tempo. Press **■** to stop.
+- Choose how long each chord lasts: **½ bar**, **1 bar** or **2 bars**. Turn on **⟳ Loop** to keep it going.
+- The chord that's sounding lights up as the progression plays. Click any chord on its own to hear it.
+- If **● Rec** is armed, the progression is captured, so you can drag it straight into FL Studio.
+
+**Now Playing** shows the chord name, its numeral, the notes being sent, and a mini keyboard with those notes lit.
+
 **Harmony map**: the panel on the right has three views. Switch between them with the Circle / Grid / Flow tabs.
 - **Circle**: the circle of fifths. Majors are on the outer ring and relative minors on the inner ring. Click a segment to change key. Your key's chords are lit, the style's colour chords are outlined, the chord you're playing is highlighted and the numbered suggestions are marked. The centre shows the relative key and the neighbouring keys.
 - **Grid**: a harmonic grid (Tonnetz). Moving right is a fifth, up-right is a major third and down-right is a minor third. Upward triangles are major chords and downward triangles are minor. Chords whose triangles touch share two notes, so chromatic-mediant moves like I → ♭III → ♭VI show up as neighbours. Click a lit triangle to play it.
