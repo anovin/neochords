@@ -23,6 +23,8 @@ struct CapturedChord
 {
     juce::String name, roman;
     std::vector<int> notes;
+    std::vector<int> velocities;      // per note, after Humanize
+    std::vector<double> offsets;      // per note, beats after the chord start (Strum)
     int velocity = 100;
     double start = 0.0;
     double end = -1.0;            // -1 while the key is still held
@@ -140,6 +142,8 @@ private:
         neo::Settings settings;
         int count = 0;
         std::array<int, 16> notes {};
+        std::array<int, 16> vels {};
+        std::array<double, 16> delaySec {};
         double seconds = 0.0;
     };
 

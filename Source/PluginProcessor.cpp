@@ -165,6 +165,14 @@ void NoviChordsProcessor::setTakeFromSteps (const std::vector<int>& slots, const
         std::sort (notes.begin(), notes.end());
         c.notes = notes;
         c.velocity = 96;
+        const double strumBeats = pStrum->load() / 1000.0 * hostBpm.load() / 60.0;
+        const float human = pHumanize->load() / 100.0f;
+        for (size_t k = 0; k < notes.size(); ++k)
+        {
+            const float jitter = 1.0f + human * (sectionRng.nextFloat() * 2.0f - 1.0f);   // message thread
+            c.velocities.push_back (juce::jlimit (1, 127, juce::roundToInt (96.0f * jitter)));
+            c.offsets.push_back (strumBeats * (double) k);
+        }
         c.start = t;
         t += i < beats.size() ? beats[i] : 4.0;
         c.end = t;
@@ -351,6 +359,9 @@ void NoviChordsProcessor::noteOn (int n, int velocity, int channel, juce::int64 
     const float human = pHumanize->load() / 100.0f;
     channel = juce::jlimit (1, 16, channel);
 
+    std::array<int, 16> capVels {};
+    std::array<double, 16> capDelays {};
+
     auto& h = held[(size_t) n];
     h.active = true;
     h.channel = channel;
@@ -362,6 +373,8 @@ void NoviChordsProcessor::noteOn (int n, int velocity, int channel, juce::int64 
         const float jitter = 1.0f + human * (rng.nextFloat() * 2.0f - 1.0f);
         const int vel = juce::jlimit (1, 127, juce::roundToInt ((float) velocity * jitter));
 
+        capVels[(size_t) h.count] = vel;
+        capDelays[(size_t) h.count] = strumSamples * (double) i / sr;
         h.notes[(size_t) h.count++] = note;
 
         // If another held chord is already sounding this note, re-strike it so every
@@ -387,7 +400,7 @@ void NoviChordsProcessor::noteOn (int n, int velocity, int channel, juce::int64 
     {
         CaptureEvent e;
         e.on = true; e.inputNote = n; e.slot = slot; e.velocity = velocity; e.settings = s;
-        e.count = h.count; e.notes = h.notes; e.seconds = (double) time / sr;
+        e.count = h.count; e.notes = h.notes; e.vels = capVels; e.delaySec = capDelays; e.seconds = (double) time / sr;
         pushCapture (e);
     }
 }
@@ -585,6 +598,9 @@ void NoviChordsProcessor::timerCallback()
                 c.name = juce::String::fromUTF8 (nameEngine.chordName (e.slot).c_str());
                 c.roman = juce::String::fromUTF8 (nameEngine.roman (e.slot).c_str());
                 c.notes.assign (e.notes.begin(), e.notes.begin() + e.count);
+                c.velocities.assign (e.vels.begin(), e.vels.begin() + e.count);
+                for (int k = 0; k < e.count; ++k)
+                    c.offsets.push_back (e.delaySec[(size_t) k] * takeBpm / 60.0);
                 c.velocity = e.velocity;
                 c.start = beat;
                 c.inputNote = e.inputNote;
@@ -638,10 +654,16 @@ juce::File NoviChordsProcessor::writeTakeToMidiFile (const juce::File& file, int
         if (end <= start) end = start + (grid > 0.0 ? grid : 0.25);
         lastEnd = juce::jmax (lastEnd, end);
 
-        for (int note : c.notes)
+        for (size_t k = 0; k < c.notes.size(); ++k)
         {
-            seq.addEvent (juce::MidiMessage::noteOn (1, note, (juce::uint8) juce::jlimit (1, 127, c.velocity)), start * ppq);
-            seq.addEvent (juce::MidiMessage::noteOff (1, note), end * ppq);
+            // Strum: each note keeps its own delay after the (snapped) chord start.
+            const double on = start + (k < c.offsets.size() ? c.offsets[k] : 0.0);
+            if (on >= end - 0.01)
+                continue;   // released before the strum reached this note, so it never sounded
+            // Humanize: each note keeps its own velocity.
+            const int vel = k < c.velocities.size() ? c.velocities[k] : c.velocity;
+            seq.addEvent (juce::MidiMessage::noteOn (1, c.notes[k], (juce::uint8) juce::jlimit (1, 127, vel)), on * ppq);
+            seq.addEvent (juce::MidiMessage::noteOff (1, c.notes[k]), end * ppq);
         }
     }
     seq.addEvent (juce::MidiMessage::endOfTrack(), lastEnd * ppq);

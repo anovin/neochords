@@ -1600,10 +1600,15 @@ void NoviChordsEditor::paintRecorder (juce::Graphics& g, juce::Rectangle<float> 
             const float x1 = inner.getX() + (float) (end / total) * inner.getWidth();
             const auto col = (i % 2 == 0 ? gold : rose).withAlpha (c.end < 0.0 ? 0.6f : 0.95f);
             g.setColour (col);
-            for (int n : c.notes)
+            for (size_t k = 0; k < c.notes.size(); ++k)
             {
+                const int n = c.notes[k];
+                const double off = k < c.offsets.size() ? c.offsets[k] : 0.0;
+                const float xs = inner.getX() + (float) ((c.start + off) / total) * inner.getWidth();
+                const float vel = k < c.velocities.size() ? (float) c.velocities[k] / 127.0f : 0.8f;
                 const float y = inner.getBottom() - ((float) (n - lo) + 1.0f) / span * inner.getHeight();
-                g.fillRoundedRectangle (x0, y, juce::jmax (2.0f, x1 - x0 - 1.0f), juce::jmax (1.5f, noteH - 0.5f), 1.0f);
+                g.setColour (col.withMultipliedAlpha (0.45f + 0.55f * vel));
+                g.fillRoundedRectangle (xs, y, juce::jmax (2.0f, x1 - xs - 1.0f), juce::jmax (1.5f, noteH - 0.5f), 1.0f);
             }
             if (x1 - x0 > 26.0f)
             {
